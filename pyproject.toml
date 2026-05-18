@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finfortress"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    # HTTP + scraping
+    "requests>=2.32",
+    "beautifulsoup4>=4.12",
+    "python-dateutil>=2.9",
+    "lxml>=5.2",
+    # PDF extraction
+    "pymupdf>=1.24",
+    "pdfplumber>=0.11",
+    "pytesseract>=0.3",
+    # Excel / CSV
+    "pandas>=2.2",
+    "openpyxl>=3.1",
+    # Embeddings + vector store
+    "sentence-transformers>=3.0",
+    "qdrant-client>=1.9",
+    # LLM + orchestration
+    "openai>=1.30",
+    "langchain>=0.2",
+    "langchain-core>=0.2",
+    "langchain-community>=0.2",
+    "langchain-openai>=0.1",
+    "langchain-text-splitters>=0.2",
+    "langgraph>=0.1",
+    # Keyword search
+    "rank-bm25>=0.2",
+    # API
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    "sse-starlette>=2.1",
+    # Demo UI
+    "streamlit>=1.35",
+    # Evaluation
+    "ragas>=0.1",
+    # Observability
+    "langsmith>=0.1",
+    # Utilities
+    "python-dotenv>=1.0",
+    "tqdm>=4.66",
+    "torchvision>=0.27.0",
+    "watchdog>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
