@@ -2,15 +2,15 @@
 
 ## What this project is
 
-Polish personal finance RAG assistant. Answers: Polish taxes, mortgages, ETFs, IKE/IKZE, gov bonds — grounded in indexed Polish sources, not LLM training data.
+Polish personal finance RAG assistant. Answers questions about Polish taxes, mortgages, ETFs, IKE/IKZE retirement accounts, and government bonds — grounded in indexed Polish sources, not LLM training data.
 
-Core differentiator: **self-correcting agentic loop** (LangGraph). Post-retrieval: grader LLM scores chunks for relevance + detects temporal mismatches. Low-confidence → query rewrite + re-retrieval. Max 2 rewrites, then graceful fallback.
+Core differentiator: **self-correcting agentic loop** (LangGraph). After retrieval a grader LLM scores each chunk for relevance and detects temporal mismatches. Low-confidence retrievals trigger query rewrite + re-retrieval before generating an answer. Max 2 rewrites, then graceful fallback.
 
-User profile (`data/user_profile.md`) injected into every generate prompt — agent answers in user's financial context, no repetition needed per message.
+User profile (`data/user_profile.md`) is injected into every generate prompt — agent answers in context of user's specific financial situation without requiring repetition in each message.
 
 ## LLM stack
 
-Default: **oMLX local** (Apple Silicon). OpenAI alternative — same code, swap env vars.
+Default: **oMLX local** (Apple Silicon). OpenAI as alternative — same code, just swap env vars.
 
 | Role | Default model | OpenAI alternative |
 |---|---|---|
@@ -96,7 +96,7 @@ finfortress/
 
 ## Running locally
 
-Use `just` for all commands. Run `just` to list recipes.
+Use `just` for all commands. Run `just` to list all recipes.
 
 ```bash
 just install          # uv sync
@@ -113,14 +113,14 @@ just graph            # generate + open agent graph diagram
 
 ## User profile
 
-`data/user_profile.md` — free-text markdown. User writes financial situation in natural language. No schema, no required fields. Loaded once at agent startup, injected verbatim into every generate prompt.
+`data/user_profile.md` — free-text markdown. User writes their financial situation in natural language. No schema, no required fields. Loaded once at agent startup, injected verbatim into every generate prompt.
 
 ```bash
 cp data/user_profile.example.md data/user_profile.md
 # write your situation, restart app
 ```
 
-Gitignored. Streamlit sidebar shows loaded profile summary.
+File is gitignored. Sidebar in Streamlit shows loaded profile summary.
 
 ## Knowledge base (current state)
 
@@ -136,13 +136,13 @@ Missing (not yet indexed): podatki.gov.pl, KNF, obligacjeskarbowe.pl, NBP report
 
 ## Key design decisions
 
-- **multilingual-e5-large**: OpenAI ada-002 degrades on Polish financial vocab. e5-large: local, free, understands Polish. MUST add `query:`/`passage:` prefixes — custom E5Embeddings wrapper handles this.
+- **multilingual-e5-large**: OpenAI ada-002 degrades on Polish financial vocab. e5-large runs locally, free, understands Polish. MUST add `query:`/`passage:` prefixes — custom E5Embeddings wrapper handles this.
 - **Hybrid retrieval (dense + BM25, RRF)**: dense finds synonyms, BM25 finds exact product codes (COI0325, WIRON 3M). RRF merges without calibrating scores. BM25 40%, dense 60%.
-- **Grading threshold 0.6**: below → chunks don't support accurate answers → rewrite.
-- **Max 2 rewrites**: prevents infinite loops. After 2 failures: avg_grade ≥ threshold → generate low-confidence; else → fallback.
-- **Grader = small model**: grader fires 6× per query. 32B = 5-10× more expensive. 7B sufficient for binary relevance classification.
-- **Never index rate data**: WIBOR/WIRON/bond rates change daily. Always fetch live via tools. Indexing creates stale data grader catches anyway.
-- **Free-text profile over Pydantic schema**: LLM understands natural language better than deserialized structs. No schema maintenance, no enum values, user can add nuance that doesn't fit any field.
+- **Grading threshold 0.6**: below this, retrieved chunks don't support accurate answers → rewrite.
+- **Max 2 rewrites**: prevents infinite loops. After 2 failures: if avg_grade still ≥ threshold → generate with low confidence; else → fallback.
+- **Grader = small model**: grader fires 6× per query. Using 32B for it would be 5-10× more expensive. 7B is sufficient for binary relevance classification.
+- **Never index rate data**: WIBOR/WIRON/bond rates change daily. Always fetch live via tools. Indexing creates stale data grader would catch anyway.
+- **Free-text profile over Pydantic schema**: LLM understands natural language better than deserialized structs. No schema maintenance, no enum values to remember, user can add nuance that doesn't fit any field.
 
 ## AgentState
 
@@ -167,12 +167,12 @@ class AgentState(TypedDict):
 
 ## What NOT to do
 
-- No commit `.env`, `data/user_profile.md`, `qdrant_data/`, `data/raw/` — see `.gitignore`
-- No embed full articles as single vectors — chunk first (512 tokens, 64 overlap)
-- No English-only embeddings — Polish vocab degrades badly
-- No index NBP/obligacje rates — always fetch live
-- No skip grading — retrieval alone unreliable for financial Q&A
-- No answer "advice" queries without disclaimer
+- Do not commit `.env`, `data/user_profile.md`, `qdrant_data/`, `data/raw/` — see `.gitignore`
+- Do not embed full articles as single vectors — chunk first (512 tokens, 64 overlap)
+- Do not use English-only embeddings — Polish vocab degrades badly
+- Do not index NBP/obligacje rates — always fetch live
+- Do not skip grading — retrieval alone unreliable for financial Q&A
+- Do not answer "advice" queries without disclaimer
 
 ## Open GitHub issues (next steps)
 
