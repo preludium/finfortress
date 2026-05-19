@@ -79,7 +79,7 @@ By default FinFortress answers general questions about Polish finance. Add a per
 
 ```bash
 cp data/user_profile.example.md data/user_profile.md
-# opisz swoją sytuację finansową, zrestartuj aplikację
+# describe your financial situation, then restart the app
 ```
 
 See the [**Personal profile**](docs/getting-started.md#set-up-your-personal-profile) section in the getting-started guide.

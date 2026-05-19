@@ -22,7 +22,7 @@ from agent.state import AgentState, INITIAL_STATE
 from agent.nodes.calculate import build_calculate_node
 from agent.nodes.classify import classify
 from agent.nodes.fallback import fallback
-from agent.nodes.fetch_live import fetch_live
+from agent.nodes.fetch_live import build_fetch_live_node
 from agent.nodes.generate import build_generate_node
 from agent.nodes.grade import build_grade_node
 from agent.nodes.retrieve import build_retrieve_node
@@ -82,16 +82,17 @@ def build_graph(qdrant_client: QdrantClient | None = None, embedder: E5Embedding
     else:
         log.info("No user_profile.md found — answering without personal context")
 
-    profile_block  = format_profile_block(profile)
-    retrieve_node  = build_retrieve_node(qdrant_client, QDRANT_COLLECTION, embedder)
-    grade_node     = build_grade_node()
-    generate_node  = build_generate_node(profile_block=profile_block)
-    calculate_node = build_calculate_node(profile_block=profile_block)
+    profile_block    = format_profile_block(profile)
+    retrieve_node    = build_retrieve_node(qdrant_client, QDRANT_COLLECTION, embedder)
+    grade_node       = build_grade_node()
+    generate_node    = build_generate_node(profile_block=profile_block)
+    calculate_node   = build_calculate_node(profile_block=profile_block)
+    fetch_live_node  = build_fetch_live_node(profile_text=profile or "")
 
     graph = StateGraph(AgentState)
 
     graph.add_node("classify",   classify)
-    graph.add_node("fetch_live", fetch_live)
+    graph.add_node("fetch_live", fetch_live_node)
     graph.add_node("calculate",  calculate_node)
     graph.add_node("retrieve",   retrieve_node)
     graph.add_node("grade",      grade_node)

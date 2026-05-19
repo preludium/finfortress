@@ -33,6 +33,7 @@ dependencies = [
     "langgraph-checkpoint-sqlite>=2.0",
     # Keyword search
     "rank-bm25>=0.2",
+    "yfinance>=0.2",
     # API
     "fastapi>=0.111",
     "uvicorn[standard]>=0.30",
