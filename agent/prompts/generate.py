@@ -29,6 +29,7 @@ Today: {today}
 {profile_block}
 {disclaimer_block}
 {live_data_block}
+{calc_result_block}
 
 Context chunks:
 {context_text}
