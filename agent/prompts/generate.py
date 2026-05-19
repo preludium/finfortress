@@ -25,6 +25,7 @@ Question: {question}
 Query type: {query_type}
 Confidence level (based on avg_grade={avg_grade:.2f}): {confidence}
 Today: {today}
+{history_block}
 {profile_block}
 {disclaimer_block}
 {live_data_block}
@@ -34,7 +35,7 @@ Context chunks:
 """
 
 ADVICE_DISCLAIMER = (
-    "WAŻNE: Poniższa odpowiedź ma charakter wyłącznie informacyjny i edukacyjny. "
-    "Nie stanowi rekomendacji inwestycyjnej ani porady finansowej. "
-    "Przed podjęciem decyzji finansowych skonsultuj się z licencjonowanym doradcą."
+    "IMPORTANT: The following response is for informational and educational purposes only. "
+    "It does not constitute investment advice or a financial recommendation. "
+    "Consult a licensed financial advisor before making any financial decisions."
 )

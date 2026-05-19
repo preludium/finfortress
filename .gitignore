@@ -26,6 +26,11 @@ memory/
 # Personal financial profile — contains private data
 data/user_profile.md
 
+# Conversation memory — contains private chat history
+data/memory.sqlite
+data/memory.sqlite-shm
+data/memory.sqlite-wal
+
 # Downloaded files
 *.pdf
 *.xlsx
