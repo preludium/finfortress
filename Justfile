@@ -4,6 +4,7 @@
 #          just <recipe> → run a recipe
 
 set dotenv-load := true
+python := ".venv/bin/python"
 
 # ── Default ───────────────────────────────────────────────────────────────────
 
@@ -43,28 +44,37 @@ ingest:
 
 # Scrape blog sources only (inwestomat.eu + marciniwuc.com)
 ingest-blogs:
-    python ingest/scrape_blogs.py --source inwestomat_blog
-    python ingest/scrape_blogs.py --source marciniwuc_blog
+    {{python}} ingest/scrape_blogs.py --source inwestomat_blog
+    {{python}} ingest/scrape_blogs.py --source marciniwuc_blog
 
 # Download government PDFs only (podatki.gov.pl, KNF, ISAP, BGK)
 ingest-pdfs:
-    python ingest/download_pdfs.py --source podatki_gov_pl
-    python ingest/download_pdfs.py --source isap_ustawa_pit
-    python ingest/download_pdfs.py --source isap_ustawa_ike_ikze
+    {{python}} ingest/download_pdfs.py --source podatki_gov_pl
+    {{python}} ingest/download_pdfs.py --source isap_ustawa_pit
+    {{python}} ingest/download_pdfs.py --source isap_ustawa_ike_ikze
 
 # Embed all raw chunks into Qdrant (run after scraping; skips already-indexed chunks)
 embed:
-    python ingest/embed_and_store.py
+    {{python}} ingest/embed_and_store.py
 
 # Scrape and preview a single article without ingesting (useful for debugging scrapers)
 scrape-url url:
-    python ingest/scrape_blogs.py --url {{url}}
+    {{python}} ingest/scrape_blogs.py --url {{url}}
 
 # ── Status ────────────────────────────────────────────────────────────────────
 
 # Show chunk counts per source in the Qdrant collection
 status:
-    python scripts/status.py
+    {{python}} scripts/status.py
+
+# List indexed domains with document and chunk counts
+sources:
+    {{python}} scripts/sources.py
+
+# Check whether a URL is already indexed in Qdrant
+# Usage: just check-url https://inwestomat.eu/ike-przewodnik/
+check-url url:
+    {{python}} scripts/check_url.py {{url}}
 
 # ── Smoke tests ───────────────────────────────────────────────────────────────
 
@@ -73,19 +83,19 @@ smoke: smoke-retrieval smoke-grade smoke-generate smoke-graph
 
 # Test hybrid retrieval (Qdrant dense + BM25 + RRF) — no LLM calls
 smoke-retrieval:
-    python scripts/smoke_retrieval.py
+    {{python}} scripts/smoke_retrieval.py
 
 # Test the grader LLM (Qwen2.5-7B / GPT-4o-mini) — verifies JSON score output
 smoke-grade:
-    python scripts/smoke_grade.py
+    {{python}} scripts/smoke_grade.py
 
 # Test the generator LLM (Qwen2.5-32B / GPT-4o) — verifies structured answer output
 smoke-generate:
-    python scripts/smoke_generate.py
+    {{python}} scripts/smoke_generate.py
 
 # Run one question end-to-end through the full agent graph
 smoke-graph:
-    python scripts/smoke_graph.py
+    {{python}} scripts/smoke_graph.py
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 
