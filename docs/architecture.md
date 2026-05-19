@@ -61,17 +61,11 @@ Before embedding, each chunk is hashed with SHA-256 of its `(url + chunk_index +
 
 The agent is a directed graph with conditional edges. Nodes are pure Python functions that read from and write to a shared `AgentState` TypedDict. LangGraph manages execution order and state passing.
 
-```
-START
-  → classify_query
-  → retrieve
-  → grade_context
-  → [rewrite_query → retrieve → grade_context]  (max 2 iterations)
-  → generate_answer | fallback_response
-END
-```
+![Agent graph](assets/agent_graph.png)
 
-The conditional edge after `grade_context` inspects `state["needs_rewrite"]`, `state["stale_data"]`, and `state["rewrite_count"]` to decide which node runs next.
+Solid arrows are unconditional edges. Dashed arrows are conditional — the edge after `grade` inspects `state["needs_rewrite"]`, `state["stale_data"]`, and `state["rewrite_count"]` to decide which node runs next.
+
+To regenerate this diagram from the live graph definition: `just graph`.
 
 ### Query classification
 

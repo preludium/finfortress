@@ -99,6 +99,11 @@ smoke-graph:
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 
+# Generate a visual diagram of the agent graph and open it
+graph:
+    {{python}} scripts/graph.py
+    open /tmp/finfortress_graph.png
+
 # Start the Streamlit demo UI at http://localhost:8501
 ui:
     streamlit run app/streamlit_app.py
