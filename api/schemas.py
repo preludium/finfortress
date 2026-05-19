@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=1000)
+    thread_id: Optional[str] = None
 
 
 class CitationModel(BaseModel):
@@ -25,3 +26,4 @@ class QueryResponse(BaseModel):
     query_type: str
     rewrite_count: int
     give_up: bool
+    thread_id: Optional[str] = None

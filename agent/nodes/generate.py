@@ -45,6 +45,20 @@ def _confidence(avg_grade: float) -> str:
     return "low"
 
 
+def _format_history(history: list) -> str:
+    if not history:
+        return ""
+    turns = history[-5:]
+    lines = ["HISTORIA ROZMOWY (ostatnie tury — uwzględnij przy odpowiedzi):"]
+    for turn in turns:
+        lines.append(f"Użytkownik: {turn['question']}")
+        answer_preview = turn["answer"][:400]
+        if len(turn["answer"]) > 400:
+            answer_preview += "…"
+        lines.append(f"Asystent: {answer_preview}")
+    return "\n".join(lines)
+
+
 def _format_context(chunks) -> str:
     parts = []
     for i, doc in enumerate(chunks, 1):
@@ -77,6 +91,7 @@ def build_generate_node(profile_block: str = "") -> Callable[[AgentState], dict]
         query_type  = state.get("query_type", "factual")
         avg_grade   = state.get("avg_grade", 0.0)
         live_data   = state.get("live_data")
+        history     = list(state.get("history") or [])
         today       = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         confidence  = _confidence(avg_grade)
 
@@ -98,6 +113,7 @@ def build_generate_node(profile_block: str = "") -> Callable[[AgentState], dict]
             avg_grade=avg_grade,
             confidence=confidence,
             today=today,
+            history_block=_format_history(history),
             profile_block=profile_block,
             disclaimer_block=disclaimer_block,
             live_data_block=live_data_block,
@@ -119,14 +135,18 @@ def build_generate_node(profile_block: str = "") -> Callable[[AgentState], dict]
             })
 
         disclaimer = ADVICE_DISCLAIMER if query_type == "advice" else None
+        answer = parsed.get("answer", "")
 
-        log.info("Generated answer (%d chars)", len(parsed.get("answer", "")))
+        history.append({"question": question, "answer": answer})
+
+        log.info("Generated answer (%d chars), history now %d turns", len(answer), len(history))
 
         return {
-            "answer":     parsed.get("answer", ""),
+            "answer":     answer,
             "citations":  citations,
             "confidence": parsed.get("confidence", confidence),
             "disclaimer": disclaimer,
+            "history":    history[-10:],
         }
 
     return generate

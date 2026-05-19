@@ -30,6 +30,7 @@ class AgentState(TypedDict):
     confidence: Optional[Literal["high", "medium", "low"]]
     disclaimer: Optional[str]
     give_up: bool
+    history: List[dict]            # [{"question": ..., "answer": ...}, ...]
 
 
 INITIAL_STATE: AgentState = {
@@ -48,4 +49,5 @@ INITIAL_STATE: AgentState = {
     "confidence": None,
     "disclaimer": None,
     "give_up": False,
+    "history": [],
 }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sqlite3
 import sys
 import warnings
 from pathlib import Path
@@ -9,6 +10,7 @@ from pathlib import Path
 warnings.filterwarnings("ignore", message="Api key is used with an insecure connection")
 
 from dotenv import load_dotenv
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from qdrant_client import QdrantClient
 
@@ -29,11 +31,12 @@ from ingest.utils.embeddings import E5Embeddings
 
 log = logging.getLogger(__name__)
 
-MAX_REWRITES    = int(os.getenv("MAX_REWRITES", "2"))
-GRADE_THRESHOLD = float(os.getenv("GRADE_THRESHOLD", "0.6"))
-QDRANT_URL      = os.getenv("QDRANT_URL", "http://localhost:6333")
+MAX_REWRITES      = int(os.getenv("MAX_REWRITES", "2"))
+GRADE_THRESHOLD   = float(os.getenv("GRADE_THRESHOLD", "0.6"))
+QDRANT_URL        = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "polish_finance")
-QDRANT_API_KEY  = os.getenv("QDRANT_API_KEY") or None
+QDRANT_API_KEY    = os.getenv("QDRANT_API_KEY") or None
+MEMORY_DB         = ROOT / "data" / "memory.sqlite"
 
 
 # ---------------------------------------------------------------------------
@@ -105,16 +108,18 @@ def build_graph(qdrant_client: QdrantClient | None = None, embedder: E5Embedding
     graph.add_edge("generate",  END)
     graph.add_edge("fallback",  END)
 
-    return graph.compile()
+    conn = sqlite3.connect(str(MEMORY_DB), check_same_thread=False)
+    checkpointer = SqliteSaver(conn)
+    return graph.compile(checkpointer=checkpointer)
 
 
 # ---------------------------------------------------------------------------
 # Convenience: run a single question
 # ---------------------------------------------------------------------------
 
-def ask(question: str, app=None) -> dict:
+def ask(question: str, app=None, config: dict | None = None) -> dict:
     """Run a question through the compiled graph. Builds graph if not provided."""
     if app is None:
         app = build_graph()
     state = {**INITIAL_STATE, "question": question}
-    return app.invoke(state)
+    return app.invoke(state, config or {})

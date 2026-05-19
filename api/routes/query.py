@@ -4,6 +4,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -19,7 +20,7 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _build_result(state: dict) -> dict:
+def _build_result(state: dict, thread_id: str | None = None) -> dict:
     return {
         "answer": state.get("answer", ""),
         "citations": state.get("citations") or [],
@@ -29,7 +30,12 @@ def _build_result(state: dict) -> dict:
         "query_type": state.get("query_type", "factual"),
         "rewrite_count": state.get("rewrite_count", 0),
         "give_up": state.get("give_up", False),
+        "thread_id": thread_id,
     }
+
+
+def _reset_input(question: str) -> dict:
+    return {k: v for k, v in INITIAL_STATE.items() if k != "history"} | {"question": question}
 
 
 # ---------------------------------------------------------------------------
@@ -40,9 +46,10 @@ def _build_result(state: dict) -> dict:
 @router.post("/query", response_model=QueryResponse)
 async def query(request: QueryRequest, req: Request):
     app = req.app.state.agent
-    state = {**INITIAL_STATE, "question": request.question}
-    result = await app.ainvoke(state)
-    return _build_result(result)
+    thread_id = request.thread_id or str(uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    result = await app.ainvoke(_reset_input(request.question), config)
+    return _build_result(result, thread_id)
 
 
 # ---------------------------------------------------------------------------
@@ -53,13 +60,14 @@ async def query(request: QueryRequest, req: Request):
 @router.post("/query/stream")
 async def query_stream(request: QueryRequest, req: Request):
     app = req.app.state.agent
+    thread_id = request.thread_id or str(uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
 
     async def event_stream():
-        state = {**INITIAL_STATE, "question": request.question}
         final_state: dict = {}
 
         try:
-            async for update in app.astream(state, stream_mode="updates"):
+            async for update in app.astream(_reset_input(request.question), config, stream_mode="updates"):
                 for node_name, node_output in update.items():
                     final_state.update(node_output)
 
@@ -81,7 +89,7 @@ async def query_stream(request: QueryRequest, req: Request):
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
             # Final result event
-            yield f"data: {json.dumps({'node': 'result', **_build_result(final_state)}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'node': 'result', **_build_result(final_state, thread_id)}, ensure_ascii=False)}\n\n"
 
         except Exception:
             log.exception("Stream error")

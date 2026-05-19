@@ -12,15 +12,15 @@ from agent.state import AgentState
 log = logging.getLogger(__name__)
 
 _FALLBACK_TEMPLATE = """\
-Nie znalazłem wystarczająco pewnych informacji, żeby odpowiedzieć na to pytanie.
+I could not find reliable enough information to answer this question.
 
-Sprawdź bezpośrednio:
-- **KNF / inwestoredukacja.pl** — pytania o IKE, IKZE, fundusze inwestycyjne
-- **podatki.gov.pl** — pytania podatkowe (PIT, podatek Belki)
-- **nbp.pl** — aktualne stopy procentowe (WIBOR, WIRON, stopa referencyjna)
-- **obligacjeskarbowe.pl** — aktualne oprocentowanie obligacji skarbowych
+Check these authoritative sources directly:
+- **KNF / inwestoredukacja.pl** — IKE, IKZE, investment funds
+- **podatki.gov.pl** — tax questions (PIT, Belka tax)
+- **nbp.pl** — current interest rates (WIBOR, WIRON, reference rate)
+- **obligacjeskarbowe.pl** — current government bond rates
 
-Twoje pytanie: *{question}*
+Your question: *{question}*
 """
 
 
