@@ -62,7 +62,7 @@ Without a profile FinFortress answers general questions about Polish finance —
 cp data/user_profile.example.md data/user_profile.md
 ```
 
-Open `data/user_profile.md` and opisz swoją sytuację finansową swobodnie — nie ma wymaganych pól ani formatu. Agent rozumie naturalny tekst.
+Open `data/user_profile.md` and describe your financial situation in free-form text — no required fields, no schema. The agent understands natural language.
 
 ```markdown
 ## Sytuacja dochodowa
@@ -87,7 +87,7 @@ Saldo 400 000 zł, WIRON 3M + 1,5% marży, rata ok. 2 200 zł/mies.
 Horyzont 25 lat, cel: emerytura, profil ryzyka: umiarkowany, poduszka 6 miesięcy.
 ```
 
-Możesz pisać cokolwiek — zmiana pracy za rok, współmałżonek z osobnym IKE, planowany zakup mieszkania, etc. Nie ma schematu, który by to ograniczał.
+Write anything — a job change next year, a spouse with a separate IKE, a planned home purchase. There is no schema constraining what you can include.
 
 ### What changes
 
@@ -97,13 +97,26 @@ The profile is injected verbatim into the generator prompt for every query:
 >
 > **Z profilem (JDG liniowy):** "Przy JDG liniowym IKZE daje Ci odliczenie od dochodu opodatkowanego 19% — to ~1 430 zł rocznie korzyści podatkowych przy maksymalnej wpłacie. Biorąc pod uwagę kredyt WIRON+1,5% i COI0325 w IKZE, pytanie czy realny koszt kredytu bije efektywną stopę obligacji po uwzględnieniu tej tarczy..."
 
-Pytania ogólne ("jaki jest limit IKE w 2025?") agent odpowiada tak samo niezależnie od profilu. Pytania osobiste ("co robić z nadwyżką — ETF czy nadpłata?") dostają odpowiedź w kontekście Twojej sytuacji bez konieczności powtarzania jej w każdej wiadomości.
+Generic questions ("what is the IKE limit in 2025?") are answered the same regardless of the profile. Personal questions ("should I overpay my mortgage or buy ETFs?") get an answer grounded in your specific situation without needing to repeat it every message.
 
 ### Keeping the profile up to date
 
-Profil wczytywany jest raz przy starcie agenta. Po edycji `data/user_profile.md` zrestartuj aplikację lub kliknij **Clear cache** w menu Streamlit. Sidebar pokazuje podgląd wczytanego profilu.
+The profile is loaded once at agent startup. After editing `data/user_profile.md`, restart the app or click **Clear cache** in the Streamlit menu. The sidebar shows a preview of the loaded profile.
 
-`data/user_profile.md` jest w `.gitignore` — nie trafi do repozytorium.
+`data/user_profile.md` is in `.gitignore` — it will never be committed to the repository.
+
+---
+
+## Conversation memory
+
+Conversation memory is on by default. Within a single Streamlit session, the agent remembers previous messages and can answer follow-up questions without repeating context:
+
+> "What is the IKE limit?" → "23 472 zł in 2025..."
+> "And for IKZE?" → agent knows you're still talking about contribution limits
+
+History is persisted to `data/memory.sqlite` (auto-created on first run, gitignored). Each Streamlit session gets its own `thread_id` — closing the browser and reopening starts a fresh conversation.
+
+For the API, pass `thread_id` from a previous response to continue a conversation. See [`docs/api.md`](api.md#conversation-memory) for details.
 
 ---
 
@@ -244,6 +257,7 @@ See [`docs/api.md`](api.md) for full API reference.
 | Empty retrieval results | e5 prefix missing | Check `ingest/utils/embeddings.py` |
 | Qdrant data lost on restart | Container started without volume | Always use `docker compose up` |
 | `KeyError: 'rewrite_count'` | AgentState not initialised | Pass `{**INITIAL_STATE, "question": ...}` |
+| Memory not persisting across restarts | `data/memory.sqlite` missing or corrupt | Delete the file and restart — it is recreated automatically |
 | Grader JSON parse error | LLM returned markdown fences | Strip fences before `json.loads()` |
 | SSE not streaming through nginx | Missing response header | Add `X-Accel-Buffering: no` |
 

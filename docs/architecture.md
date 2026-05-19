@@ -132,6 +132,23 @@ The generator uses GPT-4o with a system prompt that enforces:
 
 Output is a structured Pydantic model, not free text, so the API can render citations as interactive elements.
 
+### Conversation memory
+
+The graph is compiled with a `SqliteSaver` checkpointer (`data/memory.sqlite`). Each invocation is identified by a `thread_id`; LangGraph saves the full `AgentState` after every node execution.
+
+On subsequent messages in the same thread, the checkpointer restores the saved state. The `history` field in `AgentState` accumulates `{"question": ..., "answer": ...}` pairs — up to 10 turns stored, last 5 injected into the generation prompt as a history block.
+
+**Per-query state reset**: fields that should not carry over between questions (context, grades, rewrites) are explicitly reset on each invocation. Only `history` is preserved via the checkpointer — it is excluded from the reset dict so the checkpointer value survives the merge.
+
+```python
+# What gets passed on each new message:
+reset_input = {k: v for k, v in INITIAL_STATE.items() if k != "history"}
+reset_input["question"] = new_question
+app.invoke(reset_input, config={"configurable": {"thread_id": thread_id}})
+```
+
+Thread data persists across API restarts. Different `thread_id` values are fully isolated.
+
 ---
 
 ## Live tools

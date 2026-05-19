@@ -18,13 +18,15 @@ Synchronous — runs the full agent graph and returns the complete answer.
 
 ```json
 {
-  "question": "Jaki jest limit wpłat na IKE w 2025 roku?"
+  "question": "Jaki jest limit wpłat na IKE w 2025 roku?",
+  "thread_id": "a1b2c3d4-..."
 }
 ```
 
 | Field | Type | Constraints |
 |---|---|---|
 | `question` | string | 3–1000 characters |
+| `thread_id` | string \| null | Optional. Pass the `thread_id` from a previous response to continue a conversation. Omit (or pass `null`) to start a new session. |
 
 **Response:**
 
@@ -45,7 +47,8 @@ Synchronous — runs the full agent graph and returns the complete answer.
   "avg_grade": 0.87,
   "query_type": "factual",
   "rewrite_count": 0,
-  "give_up": false
+  "give_up": false,
+  "thread_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 }
 ```
 
@@ -61,8 +64,9 @@ Synchronous — runs the full agent graph and returns the complete answer.
 | `query_type` | `"factual"` \| `"calculation"` \| `"comparison"` \| `"advice"` | Classified query type |
 | `rewrite_count` | int | Number of query rewrites performed (0–2) |
 | `give_up` | bool | `true` if agent could not find reliable context and returned a fallback response |
+| `thread_id` | string | Thread identifier for this conversation. Pass it back in the next request to continue the session. |
 
-When `give_up` is `true`, `answer` contains a structured Polish-language response explaining the limitation and listing authoritative sources the user can check directly.
+When `give_up` is `true`, `answer` contains a structured response explaining the limitation and listing authoritative sources the user can check directly.
 
 **Example:**
 
@@ -78,7 +82,7 @@ curl -X POST http://localhost:8000/query \
 
 SSE streaming — emits one event per graph node as it completes, then a final `result` event. Use this to show retrieval progress in a UI.
 
-**Request body:** identical to `POST /query`.
+**Request body:** identical to `POST /query` — same `question` + optional `thread_id`.
 
 **Response:** `text/event-stream`. Each line is `data: <json>\n\n`.
 
@@ -97,7 +101,7 @@ data: {"node": "generate"}
 
 data: {"node": "result", "answer": "...", "citations": [...], "confidence": "high",
        "disclaimer": null, "avg_grade": 0.79, "query_type": "factual",
-       "rewrite_count": 0, "give_up": false}
+       "rewrite_count": 0, "give_up": false, "thread_id": "a1b2c3d4-..."}
 
 data: [DONE]
 ```
@@ -138,6 +142,34 @@ curl -X POST http://localhost:8000/query/stream \
   -d '{"question": "Czym różni się WIRON od WIBOR?"}' \
   --no-buffer
 ```
+
+---
+
+## Conversation memory
+
+Both endpoints support multi-turn conversations via `thread_id`. The agent remembers previous questions and answers within a thread and injects up to 5 prior turns into the generation prompt.
+
+**How to use it:**
+
+1. Send the first message without a `thread_id` (or with `null`).
+2. The response includes a `thread_id`. Store it on the client.
+3. Pass the same `thread_id` in every subsequent request to continue the conversation.
+
+```bash
+# First message — no thread_id
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Jaki jest limit IKE w 2025?"}'
+# → response includes "thread_id": "abc-123"
+
+# Follow-up — same thread
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "A co z IKZE?", "thread_id": "abc-123"}'
+# Agent knows the previous question was about IKE limits
+```
+
+Thread history is persisted to `data/memory.sqlite` on disk and survives API restarts. Omitting `thread_id` always starts a fresh stateless session.
 
 ---
 
