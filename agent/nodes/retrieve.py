@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Callable
@@ -9,7 +8,6 @@ from typing import Callable
 import numpy as np
 from langchain_core.documents import Document
 from qdrant_client import QdrantClient
-from qdrant_client.models import VectorParams, Distance
 from rank_bm25 import BM25Okapi
 
 ROOT = Path(__file__).parent.parent.parent

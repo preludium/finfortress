@@ -42,7 +42,7 @@ log = logging.getLogger(__name__)
 
 MANIFEST_PATH = ROOT / "data" / "sources_manifest.json"
 RAW_DIR = ROOT / "data" / "raw"
-BOT_UA = "finsense-pl-bot/1.0 (personal RAG project, non-commercial)"
+BOT_UA = "finfortress-bot/1.0 (personal RAG project, non-commercial)"
 POLITE_DELAY = 1.5
 REQUEST_TIMEOUT = 15
 
@@ -78,8 +78,8 @@ def _robots(base_url: str) -> RobotFileParser:
                 # "Disallow: " (empty prefix matches everything → blocks all).
                 # The spec says empty Disallow means "allow all" — strip them.
                 lines = [
-                    l for l in resp.text.splitlines()
-                    if not (l.strip().lower().startswith("disallow:") and l.split(":", 1)[1].strip() == "")
+                    ln for ln in resp.text.splitlines()
+                    if not (ln.strip().lower().startswith("disallow:") and ln.split(":", 1)[1].strip() == "")
                 ]
                 rp.parse(lines)
             else:
@@ -113,8 +113,14 @@ def _get(url: str) -> requests.Response | None:
 # Sitemap / URL discovery
 # ---------------------------------------------------------------------------
 
-def _parse_sitemap_xml(xml_text: str, base_url: str) -> list[str]:
+def _parse_sitemap_xml(xml_text: str, base_url: str, _depth: int = 0, _seen: set | None = None) -> list[str]:
     """Extract <loc> URLs from a sitemap or sitemap index. Recurses into sub-sitemaps."""
+    if _depth > 3:
+        log.warning("Sitemap recursion depth > 3 — stopping")
+        return []
+    if _seen is None:
+        _seen = set()
+
     urls: list[str] = []
     # Strip BOM, leading whitespace, and HTML comments injected before XML declaration
     import re as _re
@@ -135,11 +141,16 @@ def _parse_sitemap_xml(xml_text: str, base_url: str) -> list[str]:
         for i, sitemap in enumerate(sub_sitemaps, 1):
             loc = sitemap.findtext("sm:loc", namespaces=ns)
             if loc:
-                log.info("  Fetching sub-sitemap [%d/%d]: %s", i, len(sub_sitemaps), loc.strip())
-                resp = _get(loc.strip())
+                loc = loc.strip()
+                if loc in _seen:
+                    log.warning("  Sitemap cycle detected: %s — skipping", loc)
+                    continue
+                _seen.add(loc)
+                log.info("  Fetching sub-sitemap [%d/%d]: %s", i, len(sub_sitemaps), loc)
+                resp = _get(loc)
                 if resp:
                     time.sleep(0.5)
-                    sub_urls = _parse_sitemap_xml(resp.text, base_url)
+                    sub_urls = _parse_sitemap_xml(resp.text, base_url, _depth=_depth + 1, _seen=_seen)
                     log.info("  → %d URLs", len(sub_urls))
                     urls.extend(sub_urls)
     else:
@@ -356,7 +367,7 @@ def main() -> None:
         record = scrape_article(args.url, entry)
         if record:
             print(json.dumps(record, ensure_ascii=False, indent=2))
-            print(f"\n--- page_content preview (first 300 chars) ---")
+            print("\n--- page_content preview (first 300 chars) ---")
             print(record["page_content"][:300])
         else:
             log.error("Failed to scrape %s", args.url)

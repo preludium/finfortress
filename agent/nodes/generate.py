@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 
 LLM_MODEL       = os.getenv("LLM_MODEL", "gpt-4o")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
-OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "not-needed")
+OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or None
 GRADE_THRESHOLD = float(os.getenv("GRADE_THRESHOLD", "0.6"))
 
 

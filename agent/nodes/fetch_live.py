@@ -50,6 +50,6 @@ def fetch_live(state: AgentState) -> dict:
     if live_data:
         log.info("fetch_live: got %d chars of live data", len(live_data))
     else:
-        log.info("fetch_live: needs_live_data=True but no keyword match — skipping")
+        log.warning("fetch_live: needs_live_data=True but no keyword matched — confidence will be low")
 
-    return {"live_data": live_data}
+    return {"live_data": live_data, "needs_live_data": bool(live_data)}

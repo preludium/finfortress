@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 GRADER_MODEL    = os.getenv("GRADER_MODEL", "gpt-4o-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
-OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "not-needed")
+OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or None
 
 
 @lru_cache(maxsize=1)
@@ -53,7 +53,9 @@ def rewrite(state: AgentState) -> dict:
         )),
     ]).content
 
-    new_query = raw.strip().strip('"').strip("'")
+    # Extract first non-empty line — guards against multi-line LLM responses
+    lines = [ln.strip().strip('"').strip("'") for ln in raw.splitlines() if ln.strip()]
+    new_query = lines[0] if lines else raw.strip()
     log.info("Rewrite [%d]: %r → %r", rewrite_count + 1, question[:60], new_query[:60])
 
     return {

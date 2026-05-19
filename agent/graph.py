@@ -29,6 +29,7 @@ from ingest.utils.embeddings import E5Embeddings
 log = logging.getLogger(__name__)
 
 MAX_REWRITES    = int(os.getenv("MAX_REWRITES", "2"))
+GRADE_THRESHOLD = float(os.getenv("GRADE_THRESHOLD", "0.6"))
 QDRANT_URL      = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "polish_finance")
 QDRANT_API_KEY  = os.getenv("QDRANT_API_KEY") or None
@@ -39,13 +40,17 @@ QDRANT_API_KEY  = os.getenv("QDRANT_API_KEY") or None
 # ---------------------------------------------------------------------------
 
 def _route_after_grade(state: AgentState) -> str:
-    # Live data provides authoritative answer — context quality is supplementary
-    if state.get("live_data"):
-        log.info("Live data present — proceeding to generate regardless of grade")
-        return "generate"
     if not state.get("needs_rewrite", False):
         return "generate"
+    # Live data covers the rate answer — skip rewrite loop, go to generate
+    # (retrieved context quality is expected to be low for rate queries)
+    if state.get("live_data"):
+        log.info("Live data present — skipping rewrite loop, proceeding to generate")
+        return "generate"
     if state.get("rewrite_count", 0) >= MAX_REWRITES:
+        if state.get("avg_grade", 0.0) >= GRADE_THRESHOLD:
+            log.info("Max rewrites reached but avg_grade=%.2f — generating with low confidence", state["avg_grade"])
+            return "generate"
         log.info("Max rewrites (%d) reached — falling back", MAX_REWRITES)
         return "fallback"
     return "rewrite"

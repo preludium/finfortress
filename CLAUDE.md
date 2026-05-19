@@ -1,4 +1,4 @@
-# FinSense PL — AI assistant context
+# FinFortress — AI assistant context
 
 ## What this project is
 
@@ -24,7 +24,7 @@ The core differentiator is an **agentic self-correcting loop** (LangGraph): afte
 ## Project structure
 
 ```
-finsense-pl/
+finfortress/
 ├── CLAUDE.md                  # this file
 ├── README.md
 ├── pyproject.toml
@@ -118,7 +118,7 @@ HUGGINGFACE_TOKEN=
 # Observability
 LANGCHAIN_API_KEY=                        # LangSmith
 LANGCHAIN_TRACING_V2=true
-LANGCHAIN_PROJECT=finsense-pl
+LANGCHAIN_PROJECT=finfortress
 
 # Ingestion
 OPENAI_WHISPER_MODEL=base                 # or medium for better Polish

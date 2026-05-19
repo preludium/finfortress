@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 GRADER_MODEL    = os.getenv("GRADER_MODEL", "gpt-4o-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
-OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "not-needed")
+OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or None
 
 
 @lru_cache(maxsize=1)

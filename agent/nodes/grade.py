@@ -26,7 +26,7 @@ GRADE_THRESHOLD = float(os.getenv("GRADE_THRESHOLD", "0.6"))
 STALE_MONTHS    = int(os.getenv("STALE_MONTHS", "18"))
 GRADER_MODEL    = os.getenv("GRADER_MODEL", "gpt-4o-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
-OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "not-needed")
+OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or None
 
 
 @lru_cache(maxsize=1)
@@ -83,7 +83,11 @@ def build_grade_node() -> Callable[[AgentState], dict]:
         stale = False
 
         for i, chunk in enumerate(context):
-            result = _grade_chunk(llm, question, chunk, today)
+            try:
+                result = _grade_chunk(llm, question, chunk, today)
+            except Exception as exc:
+                log.warning("Grade chunk [%d] failed: %s — defaulting score=0.0", i + 1, exc)
+                result = {"score": 0.0, "temporal_mismatch": False, "reason": "error"}
             score  = result["score"]
             mismatch = result["temporal_mismatch"]
             scores.append(score)
@@ -95,7 +99,10 @@ def build_grade_node() -> Callable[[AgentState], dict]:
             )
 
         avg = sum(scores) / len(scores)
-        needs_rewrite = avg < GRADE_THRESHOLD or stale
+        # Rewrite only when relevance is poor. Stale data alone (good relevance
+        # score but old docs) triggers one rewrite attempt for fresher content,
+        # but does not block generation — generate node will note low confidence.
+        needs_rewrite = avg < GRADE_THRESHOLD or (stale and avg < 0.85)
 
         log.info(
             "Grade result: avg=%.2f threshold=%.2f stale=%s needs_rewrite=%s",

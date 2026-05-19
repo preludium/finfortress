@@ -20,7 +20,7 @@ _BASE_URL = "https://obligacjeskarbowe.pl"
 _TIMEOUT  = 15
 _SESSION  = requests.Session()
 _SESSION.headers.update({
-    "User-Agent": "finsense-pl-bot/1.0 (personal RAG project, non-commercial)"
+    "User-Agent": "finfortress-bot/1.0 (personal RAG project, non-commercial)"
 })
 
 # All current bond series with their product page paths

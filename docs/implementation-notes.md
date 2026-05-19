@@ -71,7 +71,7 @@ obligacje rate data is nearly unretrievable.
 Both inwestomat.eu and marciniwuc.com allow crawling as of the time of writing.
 Always check `https://inwestomat.eu/robots.txt` before your first scrape and
 add a polite delay (1.5s between requests). Use a descriptive User-Agent:
-`"finsense-pl-bot/1.0 (personal RAG project, non-commercial)"`
+`"finfortress-bot/1.0 (personal RAG project, non-commercial)"`
 
 ---
 

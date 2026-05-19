@@ -2,7 +2,7 @@
 
 ## Overview
 
-FinSense PL is a two-phase system: an **ingestion pipeline** that scrapes, processes, and indexes Polish financial content, and a **query pipeline** that retrieves and generates answers using a self-correcting agentic loop.
+FinFortress is a two-phase system: an **ingestion pipeline** that scrapes, processes, and indexes Polish financial content, and a **query pipeline** that retrieves and generates answers using a self-correcting agentic loop.
 
 ```
 Ingestion (offline, scheduled)

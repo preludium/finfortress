@@ -23,12 +23,10 @@ import json
 import logging
 import re
 import sys
-import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
-from urllib.robotparser import RobotFileParser
 
 import requests
 from bs4 import BeautifulSoup
@@ -46,7 +44,7 @@ log = logging.getLogger(__name__)
 MANIFEST_PATH = ROOT / "data" / "sources_manifest.json"
 RAW_DIR       = ROOT / "data" / "raw"
 CACHE_DIR     = ROOT / "data" / "raw" / "_pdf_cache"
-BOT_UA        = "finsense-pl-bot/1.0 (personal RAG project, non-commercial)"
+BOT_UA        = "finfortress-bot/1.0 (personal RAG project, non-commercial)"
 POLITE_DELAY  = 1.0
 REQUEST_TIMEOUT = 30
 MIN_PAGE_TEXT = 50   # chars — below this, page is likely scanned

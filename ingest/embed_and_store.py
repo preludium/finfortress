@@ -22,7 +22,6 @@ import sys
 import uuid
 from pathlib import Path
 
-import numpy as np
 from dotenv import load_dotenv
 from langchain_core.documents import Document
 from qdrant_client import QdrantClient
@@ -117,6 +116,7 @@ def embed_source(
     existing_hashes: set[str],
     dry_run: bool = False,
     batch_size: int = BATCH_SIZE,
+    collection: str = QDRANT_COLLECTION,
 ) -> int:
     """Embed one source's raw JSONL. Returns count of newly stored chunks."""
     raw_path = RAW_DIR / f"{source_id}.jsonl"
@@ -170,7 +170,7 @@ def embed_source(
     # Upsert in batches
     for i in tqdm(range(0, len(points), batch_size), desc=f"Upserting {source_id}", unit="batch"):
         batch = points[i : i + batch_size]
-        client.upsert(collection_name=QDRANT_COLLECTION, points=batch)
+        client.upsert(collection_name=collection, points=batch)
         existing_hashes.update(new_hashes[i : i + batch_size])
 
     log.info("%s: stored %d new chunks in Qdrant", source_id, len(points))
@@ -204,7 +204,7 @@ def main() -> None:
         for sid in source_ids:
             raw_path = RAW_DIR / f"{sid}.jsonl"
             if raw_path.exists():
-                records = [json.loads(l) for l in raw_path.read_text().splitlines() if l.strip()]
+                records = [json.loads(ln) for ln in raw_path.read_text().splitlines() if ln.strip()]
                 docs = _records_to_documents(records)
                 chunks = chunk_documents(docs)
                 log.info("[dry-run] %s: %d articles → %d chunks", sid, len(records), len(chunks))
