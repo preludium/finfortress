@@ -92,6 +92,7 @@ def build_generate_node(profile_block: str = "") -> Callable[[AgentState], dict]
         avg_grade   = state.get("avg_grade", 0.0)
         live_data   = state.get("live_data")
         history     = list(state.get("history") or [])
+        calc_result = state.get("calc_result")
         today       = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         confidence  = _confidence(avg_grade)
 
@@ -103,6 +104,11 @@ def build_generate_node(profile_block: str = "") -> Callable[[AgentState], dict]
         live_data_block = (
             f"Live data (use for current rates): {live_data}"
             if live_data
+            else ""
+        )
+        calc_result_block = (
+            f"Calculator result (exact — use these numbers, do not recalculate): {calc_result}"
+            if calc_result
             else ""
         )
 
@@ -117,6 +123,7 @@ def build_generate_node(profile_block: str = "") -> Callable[[AgentState], dict]
             profile_block=profile_block,
             disclaimer_block=disclaimer_block,
             live_data_block=live_data_block,
+            calc_result_block=calc_result_block,
             context_text=_format_context(context),
         )
 

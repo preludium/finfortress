@@ -74,9 +74,26 @@ The first node classifies the question into one of four types before retrieval. 
 | Type | Example | Effect |
 |---|---|---|
 | `factual` | "Jaki jest limit IKE w 2025?" | Standard retrieval |
-| `calculation` | "Ile wyniesie moja rata po wzroście WIBOR?" | Arms calculator tool + live NBP rate |
+| `calculation` | "Ile zaoszczędzę na IKZE przy JDG liniowym?" | Runs `calculate` node → pure-Python math, then RAG |
 | `comparison` | "IKE vs IKZE — co wybrać?" | Retrieves for both topics, merges context |
 | `advice` | "Czy powinienem kupić ETF czy obligacje?" | Adds disclaimer to output |
+
+### Financial calculator
+
+When `query_type == "calculation"`, the `calculate` node runs between `fetch_live` and `retrieve`. It uses the small LLM (grader model) to extract structured parameters from the question, then calls a pure-Python formula — no risk of LLM arithmetic errors.
+
+**Available formulas (`agent/tools/calculator.py`):**
+
+| Formula | What it computes |
+|---|---|
+| `ikze_shield` | Annual IKZE tax saving given contribution + marginal rate (JDG liniowy 19%, skala 12%/32%) |
+| `ike_ikze_limits` | Annual contribution limits for IKE and IKZE, with remaining headroom if YTD contributions known |
+| `belka` | 19% Belka capital gains tax — exempt in IKE, gain-exempt in IKZE |
+| `mortgage_vs_invest` | Effective return comparison: overpayment (guaranteed loan rate) vs investing (after Belka) |
+
+The `calculate` node returns `calc_result` — a formatted string injected into the generate prompt with the instruction "use these numbers, do not recalculate." If the question is a calculation type but doesn't match any formula, `calc_result` is `None` and the pipeline falls back to RAG alone.
+
+Limits in `ike_ikze_limits()` are hardcoded per year — update each January when the MF announces the new multiplier.
 
 ### Hybrid retrieval
 

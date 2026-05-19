@@ -31,6 +31,7 @@ class AgentState(TypedDict):
     disclaimer: Optional[str]
     give_up: bool
     history: List[dict]            # [{"question": ..., "answer": ...}, ...]
+    calc_result: Optional[str]     # formatted output from calculator tool
 
 
 INITIAL_STATE: AgentState = {
@@ -50,4 +51,5 @@ INITIAL_STATE: AgentState = {
     "disclaimer": None,
     "give_up": False,
     "history": [],
+    "calc_result": None,
 }

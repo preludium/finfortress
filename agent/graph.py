@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
 from agent.state import AgentState, INITIAL_STATE
+from agent.nodes.calculate import build_calculate_node
 from agent.nodes.classify import classify
 from agent.nodes.fallback import fallback
 from agent.nodes.fetch_live import fetch_live
@@ -81,24 +82,28 @@ def build_graph(qdrant_client: QdrantClient | None = None, embedder: E5Embedding
     else:
         log.info("No user_profile.md found — answering without personal context")
 
-    retrieve_node = build_retrieve_node(qdrant_client, QDRANT_COLLECTION, embedder)
-    grade_node    = build_grade_node()
-    generate_node = build_generate_node(profile_block=format_profile_block(profile))
+    profile_block  = format_profile_block(profile)
+    retrieve_node  = build_retrieve_node(qdrant_client, QDRANT_COLLECTION, embedder)
+    grade_node     = build_grade_node()
+    generate_node  = build_generate_node(profile_block=profile_block)
+    calculate_node = build_calculate_node(profile_block=profile_block)
 
     graph = StateGraph(AgentState)
 
     graph.add_node("classify",   classify)
     graph.add_node("fetch_live", fetch_live)
+    graph.add_node("calculate",  calculate_node)
     graph.add_node("retrieve",   retrieve_node)
     graph.add_node("grade",      grade_node)
     graph.add_node("rewrite",    rewrite)
     graph.add_node("generate",   generate_node)
     graph.add_node("fallback",   fallback)
 
-    graph.add_edge(START,        "classify")
-    graph.add_edge("classify",   "fetch_live")
-    graph.add_edge("fetch_live", "retrieve")
-    graph.add_edge("retrieve",  "grade")
+    graph.add_edge(START,         "classify")
+    graph.add_edge("classify",    "fetch_live")
+    graph.add_edge("fetch_live",  "calculate")
+    graph.add_edge("calculate",   "retrieve")
+    graph.add_edge("retrieve",    "grade")
     graph.add_conditional_edges(
         "grade",
         _route_after_grade,
