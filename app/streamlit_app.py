@@ -38,6 +38,28 @@ def load_agent():
 app = load_agent()
 
 # ---------------------------------------------------------------------------
+# Sidebar — user profile
+# ---------------------------------------------------------------------------
+
+with st.sidebar:
+    st.header("Twój profil")
+
+    from agent.profile import load_profile, PROFILE_PATH
+    profile_text = load_profile()
+
+    if profile_text is None:
+        st.info(
+            "Brak profilu — odpowiedzi są ogólne.\n\n"
+            "Skopiuj `data/user_profile.example.md` jako `data/user_profile.md` "
+            "i opisz swoją sytuację finansową. Uruchom aplikację ponownie."
+        )
+    else:
+        st.success("Profil wczytany")
+        with st.expander("Pokaż profil"):
+            st.markdown(profile_text)
+        st.caption(f"`{PROFILE_PATH.relative_to(PROFILE_PATH.parent.parent)}`")
+
+# ---------------------------------------------------------------------------
 # Session state
 # ---------------------------------------------------------------------------
 

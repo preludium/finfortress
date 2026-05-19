@@ -23,6 +23,9 @@ data/transcripts/
 eval/results/
 memory/
 
+# Personal financial profile — contains private data
+data/user_profile.md
+
 # Downloaded files
 *.pdf
 *.xlsx

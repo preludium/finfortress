@@ -73,6 +73,19 @@ The default setup runs entirely locally on Apple Silicon (48 GB unified memory r
 
 ---
 
+## Personalised answers
+
+By default FinFortress answers general questions about Polish finance. Add a personal profile and it answers in the context of your specific situation — income, tax bracket, mortgage, IKE/IKZE contributions, investment horizon — without you repeating it in every message.
+
+```bash
+cp data/user_profile.example.md data/user_profile.md
+# opisz swoją sytuację finansową, zrestartuj aplikację
+```
+
+See the [**Personal profile**](docs/getting-started.md#set-up-your-personal-profile) section in the getting-started guide.
+
+---
+
 ## Data sources
 
 | Source | Type | Topics |
@@ -110,7 +123,7 @@ Full setup instructions, including oMLX local LLM configuration and smoke testin
 
 | Doc | What it covers |
 |---|---|
-| [`docs/getting-started.md`](docs/getting-started.md) | Installation, configuration, ingestion, smoke testing |
+| [`docs/getting-started.md`](docs/getting-started.md) | Installation, configuration, personal profile setup, ingestion, smoke testing |
 | [`docs/architecture.md`](docs/architecture.md) | Design decisions with rationale: retrieval, grading, embedding, vector store |
 | [`docs/api.md`](docs/api.md) | API reference: POST /query, POST /query/stream (SSE), GET /health |
 | [`docs/configuration.md`](docs/configuration.md) | All environment variables with defaults |

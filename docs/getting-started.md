@@ -54,6 +54,59 @@ All other settings (`GRADE_THRESHOLD`, `MAX_REWRITES`, `QDRANT_URL`, etc.) are p
 
 ---
 
+## Set up your personal profile
+
+Without a profile FinFortress answers general questions about Polish finance — correct and cited, but generic. With a profile it knows your specific situation and adapts every answer to it.
+
+```bash
+cp data/user_profile.example.md data/user_profile.md
+```
+
+Open `data/user_profile.md` and opisz swoją sytuację finansową swobodnie — nie ma wymaganych pól ani formatu. Agent rozumie naturalny tekst.
+
+```markdown
+## Sytuacja dochodowa
+- Wiek: 35 lat
+- Forma zatrudnienia: JDG z podatkiem liniowym 19%
+- Dochód roczny brutto: ok. 144 000 zł (netto ~9 000 zł/mies)
+
+## Kredyt hipoteczny
+Saldo 400 000 zł, WIRON 3M + 1,5% marży, rata ok. 2 200 zł/mies.
+
+## IKE (otwarte czerwiec 2021)
+- VWCE: 12 szt., śr. cena 112,50 EUR, pierwsza transakcja marzec 2022
+
+## IKZE
+- COI0325: 30 obligacji COI, zakup marzec 2023, oprocentowanie rok 1: 6,55%
+
+## Inne inwestycje
+- IWDA: 5 szt., śr. cena 85 EUR, zakup styczeń 2024
+- Gotówka: ok. 5 000 zł
+
+## Ogólnie
+Horyzont 25 lat, cel: emerytura, profil ryzyka: umiarkowany, poduszka 6 miesięcy.
+```
+
+Możesz pisać cokolwiek — zmiana pracy za rok, współmałżonek z osobnym IKE, planowany zakup mieszkania, etc. Nie ma schematu, który by to ograniczał.
+
+### What changes
+
+The profile is injected verbatim into the generator prompt for every query:
+
+> **Bez profilu:** "ETF w IKE pozwala uniknąć podatku Belki od zysków kapitałowych..."
+>
+> **Z profilem (JDG liniowy):** "Przy JDG liniowym IKZE daje Ci odliczenie od dochodu opodatkowanego 19% — to ~1 430 zł rocznie korzyści podatkowych przy maksymalnej wpłacie. Biorąc pod uwagę kredyt WIRON+1,5% i COI0325 w IKZE, pytanie czy realny koszt kredytu bije efektywną stopę obligacji po uwzględnieniu tej tarczy..."
+
+Pytania ogólne ("jaki jest limit IKE w 2025?") agent odpowiada tak samo niezależnie od profilu. Pytania osobiste ("co robić z nadwyżką — ETF czy nadpłata?") dostają odpowiedź w kontekście Twojej sytuacji bez konieczności powtarzania jej w każdej wiadomości.
+
+### Keeping the profile up to date
+
+Profil wczytywany jest raz przy starcie agenta. Po edycji `data/user_profile.md` zrestartuj aplikację lub kliknij **Clear cache** w menu Streamlit. Sidebar pokazuje podgląd wczytanego profilu.
+
+`data/user_profile.md` jest w `.gitignore` — nie trafi do repozytorium.
+
+---
+
 ## Start Qdrant
 
 ```bash

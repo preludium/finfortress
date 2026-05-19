@@ -25,6 +25,7 @@ Question: {question}
 Query type: {query_type}
 Confidence level (based on avg_grade={avg_grade:.2f}): {confidence}
 Today: {today}
+{profile_block}
 {disclaimer_block}
 {live_data_block}
 

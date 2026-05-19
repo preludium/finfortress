@@ -68,7 +68,7 @@ def _parse_response(raw: str) -> dict:
         }
 
 
-def build_generate_node() -> Callable[[AgentState], dict]:
+def build_generate_node(profile_block: str = "") -> Callable[[AgentState], dict]:
 
     def generate(state: AgentState) -> dict:
         llm         = _get_llm()
@@ -98,6 +98,7 @@ def build_generate_node() -> Callable[[AgentState], dict]:
             avg_grade=avg_grade,
             confidence=confidence,
             today=today,
+            profile_block=profile_block,
             disclaimer_block=disclaimer_block,
             live_data_block=live_data_block,
             context_text=_format_context(context),
