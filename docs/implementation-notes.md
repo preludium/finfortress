@@ -234,15 +234,15 @@ Return something actionable:
 
 ```python
 FALLBACK_TEMPLATE = """
-Nie znalazłem wystarczająco pewnych informacji, żeby odpowiedzieć na to pytanie.
+I could not find reliable enough information to answer this question.
 
-Sprawdź bezpośrednio:
-- KNF / inwestoredukacja.pl — dla pytań o IKE, IKZE, fundusze
-- podatki.gov.pl — dla pytań podatkowych
-- nbp.pl — dla aktualnych stóp procentowych
-- obligacjeskarbowe.pl — dla aktualnych oprocentowań obligacji
+Check these authoritative sources directly:
+- KNF / inwestoredukacja.pl — IKE, IKZE, investment funds
+- podatki.gov.pl — tax questions (PIT, Belka tax)
+- nbp.pl — current interest rates (WIBOR, WIRON, reference rate)
+- obligacjeskarbowe.pl — current government bond rates
 
-Pytanie: {question}
+Your question: {question}
 """
 ```
 
@@ -319,10 +319,10 @@ if question := st.chat_input("Zadaj pytanie..."):
 Inline citations clutter the answer. Use `st.expander`:
 
 ```python
-with st.expander(f"Źródła ({len(result['citations'])})"):
+with st.expander(f"Sources ({len(result['citations'])})"):
     for cite in result["citations"]:
         st.caption(f"**{cite['source']}** — {cite['author']} ({cite['date']})")
-        st.markdown(f"[Otwórz]({cite['url']})")
+        st.markdown(f"[Open ↗]({cite['url']})")
 ```
 
 ---

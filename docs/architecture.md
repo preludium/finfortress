@@ -170,13 +170,17 @@ Thread data persists across API restarts. Different `thread_id` values are fully
 
 ## Live tools
 
-Two tools are registered with the agent and called only when needed:
+Three tools are called by the `fetch_live` node when `needs_live_data=True`. Which tools fire depends on keyword matching against the question. All are implemented as pure fetch functions — no LLM involved.
 
-**`nbp_rates_tool`**: Calls `api.nbp.pl` for current WIBOR/WIRON rates, NBP reference rate, and EUR/USD/CHF exchange rates. Called when query_type is `calculation` or when temporal mismatch is detected on rate-related queries.
+**`nbp_rates`** (`agent/tools/nbp_rates.py`): Calls `api.nbp.pl` for EUR/USD/CHF/GBP exchange rates and reference rate. Triggered by keywords: WIBOR, WIRON, kurs, waluta, NBP.
 
-**`obligacje_rates_tool`**: Scrapes current bond rates from `obligacjeskarbowe.pl` (no official API). Returns current rates for COI, EDO, ROS series. Called when question mentions "obligacje" or "COI" or "EDO".
+**`obligacje_rates`** (`agent/tools/obligacje_rates.py`): Scrapes current bond rates from `obligacjeskarbowe.pl` (no official API). Returns current rates for COI, EDO, ROS series. Triggered by: obligacje, COI, EDO.
 
-These are never indexed. Indexing daily-changing rate data creates stale information that the grader would catch but the user might miss. Always fetching live eliminates the problem entirely.
+**`etf_prices`** (`agent/tools/etf_prices.py`): Fetches live ETF NAV via `yfinance`, converts to PLN using NBP EUR/PLN rate, and formats unrealised P&L per position. Triggered by portfolio keywords (portfel, zysk, strata, ile warte, ticker names). Reads ETF positions from the loaded user profile using a regex parser — no LLM call.
+
+The `fetch_live` node is a factory (`build_fetch_live_node(profile_text="")`) so it can close over the loaded profile without storing it in `AgentState`.
+
+None of these tools are indexed. Indexing daily-changing data creates stale information that the grader would catch but the user might miss.
 
 ---
 
