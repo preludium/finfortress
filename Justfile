@@ -37,23 +37,20 @@ profile:
 
 # ── Ingestion ─────────────────────────────────────────────────────────────────
 
-# Run the full ingestion pipeline: scrape blogs + download PDFs + embed into Qdrant
-# First run takes 30–90 min. Safe to re-run — already-indexed chunks are skipped.
-ingest:
-    bash scripts/ingest_all.sh
+# Ingest all sources from data/my_sources/ and embed into Qdrant:
+#   data/my_sources/*.pdf    — local PDFs
+#   data/my_sources/urls.txt — individual article URLs
+#   data/my_sources/blogs.txt — full-site blog crawls (entire sitemap)
+# Safe to re-run — already-indexed items are skipped.
+ingest-sources:
+    {{python}} scripts/ingest_my_sources.py
+    {{python}} ingest/embed_and_store.py
 
-# Scrape blog sources only (inwestomat.eu + marciniwuc.com)
-ingest-blogs:
-    {{python}} ingest/scrape_blogs.py --source inwestomat_blog
-    {{python}} ingest/scrape_blogs.py --source marciniwuc_blog
+# Preview what would be ingested from data/my_sources/ without writing anything
+ingest-sources-dry:
+    {{python}} scripts/ingest_my_sources.py --dry-run
 
-# Download government PDFs only (podatki.gov.pl, KNF, ISAP, BGK)
-ingest-pdfs:
-    {{python}} ingest/download_pdfs.py --source podatki_gov_pl
-    {{python}} ingest/download_pdfs.py --source isap_ustawa_pit
-    {{python}} ingest/download_pdfs.py --source isap_ustawa_ike_ikze
-
-# Embed all raw chunks into Qdrant (run after scraping; skips already-indexed chunks)
+# Embed all raw JSONL chunks into Qdrant (low-level, skips already-indexed chunks)
 embed:
     {{python}} ingest/embed_and_store.py
 

@@ -2,15 +2,15 @@
 
 ## What this project is
 
-Polish personal finance RAG assistant. Answers: Polish taxes, mortgages, ETFs, IKE/IKZE, gov bonds — grounded in indexed Polish sources, not LLM training data.
+Polish personal finance RAG assistant. Answers Polish taxes, mortgages, ETFs, IKE/IKZE, gov bonds — indexed Polish sources, not LLM training data.
 
-Core differentiator: **self-correcting agentic loop** (LangGraph). Post-retrieval: grader LLM scores chunks for relevance + detects temporal mismatches. Low-confidence → query rewrite + re-retrieval. Max 2 rewrites, then graceful fallback.
+Core: **self-correcting agentic loop** (LangGraph). Post-retrieval: grader scores chunks relevance + temporal mismatches. Low-confidence → rewrite + re-retrieval. Max 2 rewrites, then fallback.
 
-User profile (`data/user_profile.md`) injected into every generate prompt — agent answers in user's financial context, no repetition needed per message.
+User profile (`data/user_profile.md`) injected every prompt — answers in user financial context, no repeat per message.
 
 ## LLM stack
 
-Default: **oMLX local** (Apple Silicon). OpenAI alternative — same code, swap env vars.
+Default: **oMLX local** (Apple Silicon). OpenAI alt — same code, swap env vars.
 
 | Role | Default model | OpenAI alternative |
 |---|---|---|
@@ -18,7 +18,7 @@ Default: **oMLX local** (Apple Silicon). OpenAI alternative — same code, swap 
 | Grader | `Qwen2.5-7B-Instruct-4bit` via oMLX | `gpt-4o-mini` |
 | Embeddings | `intfloat/multilingual-e5-large` (local, always) | — |
 
-See `docs/local-llm-setup.md` for oMLX setup and model tiers by RAM.
+See `docs/local-llm-setup.md` — oMLX setup + model tiers by RAM.
 
 ## Project structure (actual files)
 
@@ -46,8 +46,8 @@ finfortress/
 │   └── prompts/               # classify.py, grade.py, rewrite.py, generate.py
 │
 ├── ingest/
-│   ├── scrape_blogs.py        # inwestomat.eu + marciniwuc.com (sitemap → article)
-│   ├── download_pdfs.py       # KNF, NBP, podatki.gov.pl, BGK (PyMuPDF→pdfplumber→OCR)
+│   ├── scrape_blogs.py        # sitemap crawl → article extractor
+│   ├── download_pdfs.py       # PDF download + text extraction (PyMuPDF→pdfplumber→OCR)
 │   ├── embed_and_store.py     # chunk + embed + upsert to Qdrant (idempotent)
 │   └── utils/
 │       ├── chunker.py         # RecursiveCharacterTextSplitter wrapper
@@ -67,7 +67,7 @@ finfortress/
 │   └── streamlit_app.py       # Chat UI + sidebar profile viewer
 │
 ├── scripts/
-│   ├── ingest_all.sh          # full pipeline: scrape (parallel) → embed
+│   ├── ingest_my_sources.py   # ingest data/my_sources/ (PDFs, URLs, blogs)
 │   ├── smoke_retrieval.py     # test hybrid retrieval, no LLM calls
 │   ├── smoke_grade.py         # test grader JSON output
 │   ├── smoke_generate.py      # test generator structured output
@@ -78,9 +78,16 @@ finfortress/
 │   └── graph.py               # generate agent graph diagram PNG
 │
 ├── data/
-│   ├── sources_manifest.json  # source registry (committed)
-│   ├── user_profile.example.md # template — copy to user_profile.md
-│   └── user_profile.md        # GITIGNORED — personal financial data
+│   ├── my_sources/                    # GITIGNORED (except *.example.json)
+│   │   ├── *.pdf                      # local PDFs to index
+│   │   ├── pdfs.json                  # GITIGNORED — PDF metadata (title, author, date, topics)
+│   │   ├── pdfs.example.json          # committed template
+│   │   ├── blogs.json                 # GITIGNORED — full-site blog crawls (url, author, topics)
+│   │   ├── blogs.example.json         # committed template
+│   │   ├── urls.json                  # GITIGNORED — individual article URLs (url, author, topics)
+│   │   └── urls.example.json          # committed template
+│   ├── user_profile.example.md        # template — copy to user_profile.md
+│   └── user_profile.md                # GITIGNORED — personal financial data
 │
 └── docs/
     ├── getting-started.md     # install, configure, ingest, run
@@ -96,31 +103,34 @@ finfortress/
 
 ## Running locally
 
-Use `just` for all commands. Run `just` to list recipes.
+Use `just` for all commands. Run `just` to list.
 
 ```bash
-just install          # uv sync
-just qdrant           # docker compose up -d
-just ingest           # full pipeline (30-90 min first run)
-just smoke            # all smoke tests
-just ui               # streamlit run app/streamlit_app.py
-just api              # uvicorn api.main:app --reload --port 8000
-just status           # chunk counts per source
-just sources          # indexed domains summary
-just check-url <url>  # is this URL already indexed?
-just graph            # generate + open agent graph diagram
+just install              # uv sync
+just qdrant               # docker compose up -d
+just ingest-sources       # ingest data/my_sources/ + embed (main ingestion command)
+just ingest-sources-dry   # preview what would be ingested, no writes
+just embed                # embed all raw JSONL into Qdrant (low-level)
+just smoke                # all smoke tests
+just ui                   # streamlit run app/streamlit_app.py
+just api                  # uvicorn api.main:app --reload --port 8000
+just status               # chunk counts per source
+just sources              # indexed domains summary
+just check-url <url>      # is this URL already indexed?
+just scrape-url <url>     # preview article scrape without ingesting
+just graph                # generate + open agent graph diagram
 ```
 
 ## User profile
 
-`data/user_profile.md` — free-text markdown. User writes financial situation in natural language. No schema, no required fields. Loaded once at agent startup, injected verbatim into every generate prompt.
+`data/user_profile.md` — free-text markdown. User writes financial situation. No schema, no required fields. Loaded once at startup, injected verbatim every prompt.
 
 ```bash
 cp data/user_profile.example.md data/user_profile.md
 # write your situation, restart app
 ```
 
-Gitignored. Streamlit sidebar shows loaded profile summary.
+Gitignored. Streamlit sidebar shows profile summary.
 
 ## Knowledge base (current state)
 
@@ -132,17 +142,17 @@ isap.sejm.gov.pl     2 docs    1,350 chunks   (ustawa PIT, ustawa IKE/IKZE)
 TOTAL             1112 docs   63,008 chunks
 ```
 
-Missing (not yet indexed): podatki.gov.pl, KNF, obligacjeskarbowe.pl, NBP reports, UOKiK, BGK.
+Missing: podatki.gov.pl, KNF, obligacjeskarbowe.pl, NBP reports, UOKiK, BGK.
 
 ## Key design decisions
 
-- **multilingual-e5-large**: OpenAI ada-002 degrades on Polish financial vocab. e5-large: local, free, understands Polish. MUST add `query:`/`passage:` prefixes — custom E5Embeddings wrapper handles this.
-- **Hybrid retrieval (dense + BM25, RRF)**: dense finds synonyms, BM25 finds exact product codes (COI0325, WIRON 3M). RRF merges without calibrating scores. BM25 40%, dense 60%.
-- **Grading threshold 0.6**: below → chunks don't support accurate answers → rewrite.
-- **Max 2 rewrites**: prevents infinite loops. After 2 failures: avg_grade ≥ threshold → generate low-confidence; else → fallback.
-- **Grader = small model**: grader fires 6× per query. 32B = 5-10× more expensive. 7B sufficient for binary relevance classification.
-- **Never index rate data**: WIBOR/WIRON/bond rates change daily. Always fetch live via tools. Indexing creates stale data grader catches anyway.
-- **Free-text profile over Pydantic schema**: LLM understands natural language better than deserialized structs. No schema maintenance, no enum values, user can add nuance that doesn't fit any field.
+- **multilingual-e5-large**: ada-002 degrades Polish financial vocab. e5-large: local, free, understands Polish. MUST add `query:`/`passage:` prefixes — E5Embeddings wrapper handles this.
+- **Hybrid retrieval (dense + BM25, RRF)**: dense finds synonyms, BM25 finds exact codes (COI0325, WIRON 3M). RRF merges, no score calibration. BM25 40%, dense 60%.
+- **Grading threshold 0.6**: below → chunks insufficient → rewrite.
+- **Max 2 rewrites**: prevents infinite loops. After 2 fails: avg_grade ≥ threshold → low-confidence; else → fallback.
+- **Grader = small model**: grader fires 6× per query. 32B = 5-10× costlier. 7B sufficient for binary relevance.
+- **Never index rate data**: WIBOR/WIRON/bond rates change daily. Always fetch live. Indexing creates stale data grader catches.
+- **Free-text profile over Pydantic schema**: LLM understands natural language better than structs. No schema maintenance, no enums, user can add nuance freely.
 
 ## AgentState
 
@@ -167,7 +177,7 @@ class AgentState(TypedDict):
 
 ## What NOT to do
 
-- No commit `.env`, `data/user_profile.md`, `qdrant_data/`, `data/raw/` — see `.gitignore`
+- No commit `.env`, `data/user_profile.md`, `data/my_sources/`, `qdrant_data/`, `data/raw/` — see `.gitignore`
 - No embed full articles as single vectors — chunk first (512 tokens, 64 overlap)
 - No English-only embeddings — Polish vocab degrades badly
 - No index NBP/obligacje rates — always fetch live

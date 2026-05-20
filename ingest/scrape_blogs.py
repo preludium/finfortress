@@ -265,29 +265,37 @@ def scrape_article(url: str, source_entry: dict) -> dict | None:
     date_str = _extract_date(soup)
     year = int(date_str[:4]) if len(date_str) >= 4 else None
 
-    return {
+    record = {
         "url": url,
         "source_id": source_entry["id"],
         "source": urlparse(url).netloc,
-        "author": source_entry["author"],
+        "author": source_entry.get("author", ""),
         "title": title,
         "date": date_str,
         "year": year,
-        "language": source_entry["language"],
-        "content_type": source_entry["type"],
+        "language": source_entry.get("language", "pl"),
+        "content_type": source_entry.get("type", "blog_html"),
         "scraped_at": datetime.now(timezone.utc).isoformat(),
         "page_content": text,
     }
+    if topics := source_entry.get("topics"):
+        record["topics"] = topics
+    return record
 
 
 # ---------------------------------------------------------------------------
 # Scrape one manifest source
 # ---------------------------------------------------------------------------
 
-def scrape_source(entry: dict, dry_run: bool = False, limit: int | None = None) -> int:
-    """Scrape articles for one manifest entry. Returns count of new records."""
+def scrape_source(
+    entry: dict,
+    dry_run: bool = False,
+    limit: int | None = None,
+    out_path_override: Path | None = None,
+) -> int:
+    """Scrape articles for one source entry. Returns count of new records."""
     source_id = entry["id"]
-    out_path = RAW_DIR / f"{source_id}.jsonl"
+    out_path = out_path_override or RAW_DIR / f"{source_id}.jsonl"
     RAW_DIR.mkdir(parents=True, exist_ok=True)
 
     # Load already-scraped URLs to skip duplicates

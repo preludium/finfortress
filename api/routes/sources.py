@@ -14,5 +14,7 @@ MANIFEST_PATH = ROOT / "data" / "sources_manifest.json"
 
 @router.get("/sources")
 async def sources():
+    if not MANIFEST_PATH.exists():
+        return JSONResponse([])
     with MANIFEST_PATH.open("r", encoding="utf-8") as fh:
         return JSONResponse(json.load(fh))
