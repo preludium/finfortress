@@ -2,15 +2,15 @@
 
 ## What this project is
 
-Polish personal finance RAG assistant. Answers questions about Polish taxes, mortgages, ETFs, IKE/IKZE retirement accounts, and government bonds — grounded in indexed Polish sources, not LLM training data.
+Polish personal finance RAG assistant. Answers: Polish taxes, mortgages, ETFs, IKE/IKZE, gov bonds — grounded in indexed Polish sources, not LLM training data.
 
-Core differentiator: **self-correcting agentic loop** (LangGraph). After retrieval a grader LLM scores each chunk for relevance and detects temporal mismatches. Low-confidence retrievals trigger query rewrite + re-retrieval before generating an answer. Max 2 rewrites, then graceful fallback.
+Core differentiator: **self-correcting agentic loop** (LangGraph). Post-retrieval: grader LLM scores chunks for relevance + detects temporal mismatches. Low-confidence → query rewrite + re-retrieval. Max 2 rewrites, then graceful fallback.
 
-User profile (`data/user_profile.md`) is injected into every generate prompt — agent answers in context of user's specific financial situation without requiring repetition in each message.
+User profile (`data/user_profile.md`) injected into every generate prompt — agent answers in user's financial context, no repetition needed per message.
 
 ## LLM stack
 
-Default: **oMLX local** (Apple Silicon). OpenAI as alternative — same code, just swap env vars.
+Default: **oMLX local** (Apple Silicon). OpenAI alternative — same code, swap env vars.
 
 | Role | Default model | OpenAI alternative |
 |---|---|---|
@@ -46,8 +46,8 @@ finfortress/
 │   └── prompts/               # classify.py, grade.py, rewrite.py, generate.py
 │
 ├── ingest/
-│   ├── scrape_blogs.py        # inwestomat.eu + marciniwuc.com (sitemap → article)
-│   ├── download_pdfs.py       # KNF, NBP, podatki.gov.pl, BGK (PyMuPDF→pdfplumber→OCR)
+│   ├── scrape_blogs.py        # sitemap crawl → article extractor
+│   ├── download_pdfs.py       # PDF download + text extraction (PyMuPDF→pdfplumber→OCR)
 │   ├── embed_and_store.py     # chunk + embed + upsert to Qdrant (idempotent)
 │   └── utils/
 │       ├── chunker.py         # RecursiveCharacterTextSplitter wrapper
@@ -67,7 +67,7 @@ finfortress/
 │   └── streamlit_app.py       # Chat UI + sidebar profile viewer
 │
 ├── scripts/
-│   ├── ingest_all.sh          # full pipeline: scrape (parallel) → embed
+│   ├── ingest_my_sources.py   # ingest data/my_sources/ (PDFs, URLs, blogs)
 │   ├── smoke_retrieval.py     # test hybrid retrieval, no LLM calls
 │   ├── smoke_grade.py         # test grader JSON output
 │   ├── smoke_generate.py      # test generator structured output
@@ -78,9 +78,16 @@ finfortress/
 │   └── graph.py               # generate agent graph diagram PNG
 │
 ├── data/
-│   ├── sources_manifest.json  # source registry (committed)
-│   ├── user_profile.example.md # template — copy to user_profile.md
-│   └── user_profile.md        # GITIGNORED — personal financial data
+│   ├── my_sources/                    # GITIGNORED (except *.example.json)
+│   │   ├── *.pdf                      # local PDFs to index
+│   │   ├── pdfs.json                  # GITIGNORED — PDF metadata (title, author, date, topics)
+│   │   ├── pdfs.example.json          # committed template
+│   │   ├── blogs.json                 # GITIGNORED — full-site blog crawls (url, author, topics)
+│   │   ├── blogs.example.json         # committed template
+│   │   ├── urls.json                  # GITIGNORED — individual article URLs (url, author, topics)
+│   │   └── urls.example.json          # committed template
+│   ├── user_profile.example.md        # template — copy to user_profile.md
+│   └── user_profile.md                # GITIGNORED — personal financial data
 │
 └── docs/
     ├── getting-started.md     # install, configure, ingest, run
@@ -96,31 +103,34 @@ finfortress/
 
 ## Running locally
 
-Use `just` for all commands. Run `just` to list all recipes.
+Use `just` for all commands. Run `just` to list recipes.
 
 ```bash
-just install          # uv sync
-just qdrant           # docker compose up -d
-just ingest           # full pipeline (30-90 min first run)
-just smoke            # all smoke tests
-just ui               # streamlit run app/streamlit_app.py
-just api              # uvicorn api.main:app --reload --port 8000
-just status           # chunk counts per source
-just sources          # indexed domains summary
-just check-url <url>  # is this URL already indexed?
-just graph            # generate + open agent graph diagram
+just install              # uv sync
+just qdrant               # docker compose up -d
+just ingest-sources       # ingest data/my_sources/ + embed (main ingestion command)
+just ingest-sources-dry   # preview what would be ingested, no writes
+just embed                # embed all raw JSONL into Qdrant (low-level)
+just smoke                # all smoke tests
+just ui                   # streamlit run app/streamlit_app.py
+just api                  # uvicorn api.main:app --reload --port 8000
+just status               # chunk counts per source
+just sources              # indexed domains summary
+just check-url <url>      # is this URL already indexed?
+just scrape-url <url>     # preview article scrape without ingesting
+just graph                # generate + open agent graph diagram
 ```
 
 ## User profile
 
-`data/user_profile.md` — free-text markdown. User writes their financial situation in natural language. No schema, no required fields. Loaded once at agent startup, injected verbatim into every generate prompt.
+`data/user_profile.md` — free-text markdown. User writes financial situation in natural language. No schema, no required fields. Loaded once at agent startup, injected verbatim into every generate prompt.
 
 ```bash
 cp data/user_profile.example.md data/user_profile.md
 # write your situation, restart app
 ```
 
-File is gitignored. Sidebar in Streamlit shows loaded profile summary.
+Gitignored. Streamlit sidebar shows loaded profile summary.
 
 ## Knowledge base (current state)
 
@@ -136,13 +146,13 @@ Missing (not yet indexed): podatki.gov.pl, KNF, obligacjeskarbowe.pl, NBP report
 
 ## Key design decisions
 
-- **multilingual-e5-large**: OpenAI ada-002 degrades on Polish financial vocab. e5-large runs locally, free, understands Polish. MUST add `query:`/`passage:` prefixes — custom E5Embeddings wrapper handles this.
+- **multilingual-e5-large**: OpenAI ada-002 degrades on Polish financial vocab. e5-large: local, free, understands Polish. MUST add `query:`/`passage:` prefixes — custom E5Embeddings wrapper handles this.
 - **Hybrid retrieval (dense + BM25, RRF)**: dense finds synonyms, BM25 finds exact product codes (COI0325, WIRON 3M). RRF merges without calibrating scores. BM25 40%, dense 60%.
-- **Grading threshold 0.6**: below this, retrieved chunks don't support accurate answers → rewrite.
-- **Max 2 rewrites**: prevents infinite loops. After 2 failures: if avg_grade still ≥ threshold → generate with low confidence; else → fallback.
-- **Grader = small model**: grader fires 6× per query. Using 32B for it would be 5-10× more expensive. 7B is sufficient for binary relevance classification.
-- **Never index rate data**: WIBOR/WIRON/bond rates change daily. Always fetch live via tools. Indexing creates stale data grader would catch anyway.
-- **Free-text profile over Pydantic schema**: LLM understands natural language better than deserialized structs. No schema maintenance, no enum values to remember, user can add nuance that doesn't fit any field.
+- **Grading threshold 0.6**: below → chunks don't support accurate answers → rewrite.
+- **Max 2 rewrites**: prevents infinite loops. After 2 failures: avg_grade ≥ threshold → generate low-confidence; else → fallback.
+- **Grader = small model**: grader fires 6× per query. 32B = 5-10× more expensive. 7B sufficient for binary relevance classification.
+- **Never index rate data**: WIBOR/WIRON/bond rates change daily. Always fetch live via tools. Indexing creates stale data grader catches anyway.
+- **Free-text profile over Pydantic schema**: LLM understands natural language better than deserialized structs. No schema maintenance, no enum values, user can add nuance that doesn't fit any field.
 
 ## AgentState
 
@@ -167,12 +177,12 @@ class AgentState(TypedDict):
 
 ## What NOT to do
 
-- Do not commit `.env`, `data/user_profile.md`, `qdrant_data/`, `data/raw/` — see `.gitignore`
-- Do not embed full articles as single vectors — chunk first (512 tokens, 64 overlap)
-- Do not use English-only embeddings — Polish vocab degrades badly
-- Do not index NBP/obligacje rates — always fetch live
-- Do not skip grading — retrieval alone unreliable for financial Q&A
-- Do not answer "advice" queries without disclaimer
+- No commit `.env`, `data/user_profile.md`, `data/my_sources/`, `qdrant_data/`, `data/raw/` — see `.gitignore`
+- No embed full articles as single vectors — chunk first (512 tokens, 64 overlap)
+- No English-only embeddings — Polish vocab degrades badly
+- No index NBP/obligacje rates — always fetch live
+- No skip grading — retrieval alone unreliable for financial Q&A
+- No answer "advice" queries without disclaimer
 
 ## Open GitHub issues (next steps)
 

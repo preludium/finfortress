@@ -111,7 +111,8 @@ git clone https://github.com/your-username/finfortress && cd finfortress
 uv sync
 cp .env.example .env          # fill in OPENAI_API_KEY or oMLX config
 docker compose up -d          # start Qdrant
-bash scripts/ingest_all.sh    # index all sources (~30–90 min)
+# drop PDFs in data/my_sources/, add blog URLs to data/my_sources/blogs.txt
+just ingest-sources           # extract, scrape, embed (~30–90 min first run)
 streamlit run app/streamlit_app.py
 ```
 

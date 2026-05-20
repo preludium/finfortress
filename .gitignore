@@ -16,15 +16,23 @@ build/
 
 # Data — never commit scraped content or vector store
 qdrant_data/
-data/raw/
-data/chunks/
-data/snapshots/
+data/raw/*
+data/chunks/*
+data/snapshots/*
 data/transcripts/
 eval/results/
 memory/
 
 # Personal financial profile — contains private data
 data/user_profile.md
+
+# Personal sources — PDFs and JSON manifests (never commit)
+# Manage with: data/my_sources/pdfs.json, blogs.json, urls.json
+# Templates committed at: data/pdfs.example.json, blogs.example.json, urls.example.json
+data/my_sources/*
+!data/my_sources/blogs.example.json
+!data/my_sources/pdfs.example.json
+!data/my_sources/urls.example.json
 
 # Conversation memory — contains private chat history
 data/memory.sqlite

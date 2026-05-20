@@ -1,0 +1,10 @@
+[
+  {
+    "file": "example_document.pdf",
+    "title": "Example Document Title",
+    "author": "Author or Institution",
+    "date": "2024-01-15",
+    "topics": ["kredyt hipoteczny", "oprocentowanie"],
+    "notes": "Why you added this document"
+  }
+]

@@ -136,51 +136,93 @@ curl http://localhost:6333/healthz
 
 ---
 
+## Add your sources
+
+All sources live in `data/my_sources/` — fully gitignored so nothing about your data appears in the repository. Three JSON manifests control what gets indexed:
+
+| Manifest | What | How handled |
+|---|---|---|
+| `data/my_sources/pdfs.json` | Local PDFs | Text extracted via PyMuPDF → pdfplumber → OCR |
+| `data/my_sources/blogs.json` | Full-site blog crawls | Entire sitemap indexed |
+| `data/my_sources/urls.json` | Individual articles | Single page scraped |
+
+Copy the templates to get started:
+
+```bash
+cp data/my_sources/pdfs.example.json data/my_sources/pdfs.json
+cp data/my_sources/blogs.example.json data/my_sources/blogs.json
+cp data/my_sources/urls.example.json data/my_sources/urls.json
+```
+
+**`pdfs.json`** — drop the PDF in `data/my_sources/`, add an entry with metadata:
+
+```json
+[
+  {
+    "file": "Umowa_kredytowa.pdf",
+    "title": "Umowa kredytowa PKO BP",
+    "author": "PKO BP",
+    "date": "2024-03-01",
+    "topics": ["kredyt hipoteczny"],
+    "notes": "Moja umowa, marża 1.5%, WIRON 3M"
+  }
+]
+```
+
+PDFs without a matching entry are still indexed — they just get filename-derived title and no author or topics.
+
+**`blogs.json`** — base URL of the blog, scraper auto-discovers the sitemap:
+
+```json
+[
+  {
+    "url": "https://exampleblog.pl/",
+    "author": "Author Name",
+    "topics": ["ETF", "IKE", "IKZE"],
+    "notes": "Main ETF blog"
+  }
+]
+```
+
+**`urls.json`** — individual articles:
+
+```json
+[
+  {
+    "url": "https://example.com/kredyt-hipoteczny-poradnik/",
+    "author": "Author Name",
+    "topics": ["kredyt hipoteczny"],
+    "notes": "Good overpayment explainer"
+  }
+]
+```
+
+`topics` is stored in Qdrant per chunk — available for filtering at retrieval time. `notes` is for your reference only, not stored in Qdrant.
+
+---
+
 ## Run ingestion
 
-Ingestion scrapes all sources and embeds them into Qdrant. On first run this takes 30–90 minutes depending on connection speed. Sources are scraped concurrently; embedding runs sequentially after.
-
 ```bash
-bash scripts/ingest_all.sh
+just ingest-sources
 ```
 
-Logs go to `data/logs/`. Watch progress:
+This processes everything in `data/my_sources/` (PDFs, URLs, blog crawls) and embeds into Qdrant. First run takes 30–90 minutes depending on how many articles your blogs have. Already-indexed items are skipped on re-runs.
+
+Preview what would be processed without writing anything:
 
 ```bash
-tail -f data/logs/scrape_inwestomat.log
-tail -f data/logs/embed.log
+just ingest-sources-dry
 ```
-
-When done, the script prints the final point count from Qdrant. Expect ~15,000–25,000 vectors depending on how many PDF pages download successfully.
-
-### Ingesting individual sources
-
-If you want to index a specific source only:
-
-```bash
-# Blog sources
-python ingest/scrape_blogs.py --source inwestomat_blog
-python ingest/scrape_blogs.py --source marciniwuc_blog
-
-# PDF / government sources
-python ingest/download_pdfs.py --source podatki_gov_pl
-python ingest/download_pdfs.py --source isap_ustawa_pit
-python ingest/download_pdfs.py --source isap_ustawa_ike_ikze
-
-# After scraping, embed everything not yet in Qdrant
-python ingest/embed_and_store.py
-```
-
-Source IDs are defined in `data/sources_manifest.json`.
 
 ### Ingestion is idempotent
 
-Each chunk is hashed with `SHA-256(url + chunk_index + content)`. On subsequent runs, chunks already in Qdrant are skipped. It's safe to re-run `ingest_all.sh` — it won't duplicate data.
+Each chunk is hashed with `SHA-256(url + chunk_index + content)`. On subsequent runs, chunks already in Qdrant are skipped. It's safe to re-run `just ingest-sources` — it will not duplicate data.
 
 ### Test a single article (without ingesting)
 
 ```bash
-python ingest/scrape_blogs.py --url https://inwestomat.eu/ike-przewodnik/
+just scrape-url https://example.com/some-article/
 ```
 
 Prints the scraped record as JSON including a 300-character content preview. Useful for verifying the scraper handles a specific article correctly.
@@ -252,7 +294,7 @@ See [`docs/api.md`](api.md) for full API reference.
 
 | Error | Cause | Fix |
 |---|---|---|
-| `Collection not found` | Qdrant empty — ingestion not run | Run `bash scripts/ingest_all.sh` |
+| `Collection not found` | Qdrant empty — ingestion not run | Run `just ingest-sources` |
 | Slow first startup | e5-large model downloading (~2.2 GB) | Wait — cached after first download |
 | Empty retrieval results | e5 prefix missing | Check `ingest/utils/embeddings.py` |
 | Qdrant data lost on restart | Container started without volume | Always use `docker compose up` |
