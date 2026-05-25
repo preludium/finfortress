@@ -27,7 +27,7 @@ from agent.nodes.generate import build_generate_node
 from agent.nodes.grade import build_grade_node
 from agent.nodes.retrieve import build_retrieve_node
 from agent.nodes.rewrite import rewrite
-from agent.profile import load_profile, format_profile_block
+from agent.profile import load_profile, format_profile_block, parse_snapshot
 from ingest.utils.embeddings import E5Embeddings
 
 log = logging.getLogger(__name__)
@@ -82,12 +82,13 @@ def build_graph(qdrant_client: QdrantClient | None = None, embedder: E5Embedding
     else:
         log.info("No user_profile.md found — answering without personal context")
 
+    snapshot         = parse_snapshot(profile) if profile else None
     profile_block    = format_profile_block(profile)
     retrieve_node    = build_retrieve_node(qdrant_client, QDRANT_COLLECTION, embedder)
     grade_node       = build_grade_node()
     generate_node    = build_generate_node(profile_block=profile_block)
     calculate_node   = build_calculate_node(profile_block=profile_block)
-    fetch_live_node  = build_fetch_live_node(profile_text=profile or "")
+    fetch_live_node  = build_fetch_live_node(profile_text=profile or "", snapshot=snapshot)
 
     graph = StateGraph(AgentState)
 

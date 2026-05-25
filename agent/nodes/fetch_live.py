@@ -27,7 +27,7 @@ _ETF_KEYWORDS = re.compile(
 )
 
 
-def build_fetch_live_node(profile_text: str = "") -> Callable[[AgentState], dict]:
+def build_fetch_live_node(profile_text: str = "", snapshot: dict | None = None) -> Callable[[AgentState], dict]:
 
     def fetch_live(state: AgentState) -> dict:
         """Fetch live data when classify flagged needs_live_data=True."""
@@ -65,11 +65,18 @@ def build_fetch_live_node(profile_text: str = "") -> Callable[[AgentState], dict
             except Exception as exc:
                 log.warning("Obligacje fetch failed: %s", exc)
 
-        if _ETF_KEYWORDS.search(question) and profile_text:
+        if _ETF_KEYWORDS.search(question):
             log.info("fetch_live: fetching ETF portfolio prices")
             try:
                 from agent.tools.etf_prices import parse_etf_positions, fetch_etf_prices
-                positions = parse_etf_positions(profile_text)
+                # Prefer structured snapshot parser; fall back to regex on raw text
+                if snapshot and snapshot.get("etf_positions"):
+                    positions = snapshot["etf_positions"]
+                    log.info("fetch_live: using %d position(s) from snapshot", len(positions))
+                elif profile_text:
+                    positions = parse_etf_positions(profile_text)
+                else:
+                    positions = []
                 if positions:
                     parts.append(fetch_etf_prices(positions, eur_pln=eur_pln))
                 else:

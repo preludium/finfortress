@@ -99,6 +99,51 @@ The profile is injected verbatim into the generator prompt for every query:
 
 Generic questions ("what is the IKE limit in 2025?") are answered the same regardless of the profile. Personal questions ("should I overpay my mortgage or buy ETFs?") get an answer grounded in your specific situation without needing to repeat it every message.
 
+### Portfolio snapshot section
+
+The free-text profile is great for context, but the agent also needs to parse specific numbers reliably — ETF positions for live price fetching, cash for allocation calculations, mortgage balance for overpayment math.
+
+Add a `## Portfolio snapshot` section at the end of your profile using the exact format below. **Only this section has a required format** — everything else remains free text.
+
+```markdown
+## Portfolio snapshot
+
+### IKE
+- IWDA (IE00B4L5Y983): 54.8816 units, avg 111.22 EUR
+- 2025 limit: 26 019 PLN, filled
+- 2026 limit: 28 260 PLN, not yet filled
+
+### IKZE
+(nie otworzyłem)
+
+### Obligacje skarbowe
+- TOS0428: 250 × 100 PLN, matures 2028-04, rate 5.95% fixed
+- TOS1128: 300 × 100 PLN, matures 2028-11, rate 4.90% fixed
+
+### Inne inwestycje
+- VWCE (IE00B3RBWM25): 12 units, avg 112.50 EUR
+
+### Cash
+- ~80 000 PLN (emergency: 30 000 PLN, available: 50 000 PLN)
+
+### Liabilities
+- Mortgage BK2%: 451 955 PLN (2026-05)
+```
+
+Each account has its own section — ETF positions and limit status together in `### IKE`, same for `### IKZE`. Bonds across all accounts go in `### Obligacje skarbowe`. Assets outside IKE/IKZE go in `### Inne inwestycje`.
+
+**Format rules:**
+
+| Field | Format | Example |
+|---|---|---|
+| ETF position | `- TICKER (ISIN): N units, avg X.XX EUR` | `- IWDA (IE00B4L5Y983): 54.8816 units, avg 111.22 EUR` |
+| IKE limit | `- YYYY limit: N PLN, filled\|not yet filled` | `- 2026 limit: 28 260 PLN, not yet filled` |
+| Bond | `- SERIA: N × 100 PLN, matures YYYY-MM, rate X.XX% fixed\|indexed` | `- TOS0428: 250 × 100 PLN, matures 2028-04, rate 5.95% fixed` |
+| Cash | `- ~N PLN (emergency: N PLN, available: N PLN)` | `- ~80 000 PLN (emergency: 30 000 PLN, available: 50 000 PLN)` |
+| Mortgage | `- Mortgage TYPE: N PLN (YYYY-MM)` | `- Mortgage BK2%: 451 955 PLN (2026-05)` |
+
+If the section is absent or a line doesn't match the format, the agent falls back to reading the free-text profile. **Update the snapshot quarterly** or whenever positions change significantly.
+
 ### Keeping the profile up to date
 
 The profile is loaded once at agent startup. After editing `data/user_profile.md`, restart the app or click **Clear cache** in the Streamlit menu. The sidebar shows a preview of the loaded profile.
