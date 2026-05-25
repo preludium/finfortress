@@ -90,6 +90,7 @@ When `query_type == "calculation"`, the `calculate` node runs between `fetch_liv
 | `ike_ikze_limits` | Annual contribution limits for IKE and IKZE, with remaining headroom if YTD contributions known |
 | `belka` | 19% Belka capital gains tax — exempt in IKE, gain-exempt in IKZE |
 | `mortgage_vs_invest` | Effective return comparison: overpayment (guaranteed loan rate) vs investing (after Belka) |
+| `cash_allocation` | Idle cash split across IKE / mortgage / COI obligacje / savings. Allocates sequentially: IKE limit first (Belka-free), then best remaining option by after-tax return. IKZE reported separately. Triggered by: "gdzie ulokować", "co z gotówką", "alokacja gotówki". |
 
 The `calculate` node returns `calc_result` — a formatted string injected into the generate prompt with the instruction "use these numbers, do not recalculate." If the question is a calculation type but doesn't match any formula, `calc_result` is `None` and the pipeline falls back to RAG alone.
 

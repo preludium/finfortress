@@ -154,3 +154,118 @@ def mortgage_vs_investment(
             f"Spread: {spread*100:+.2f}%."
         ),
     }
+
+
+# ---------------------------------------------------------------------------
+# 5. Cash allocation across Polish investment options
+# ---------------------------------------------------------------------------
+
+def _pln(n: float) -> str:
+    """Format PLN amount with space thousands separator (Polish convention)."""
+    return f"{n:,.0f}".replace(",", " ")
+
+
+def cash_allocation(
+    cash: float,
+    ike_remaining: float = 0.0,
+    ikze_remaining: float | None = None,
+    mortgage_rate: float | None = None,
+    ikze_tax_bracket: float = 0.19,
+    ikze_self_employed: bool = True,
+    locked_amount: float = 0.0,
+    locked_months: int = 0,
+    savings_rate: float = 0.05,
+    obligacje_rate: float = 0.062,
+    etf_expected_return: float = 0.07,
+) -> dict:
+    """
+    Side-by-side allocation of idle PLN cash across Polish investment options.
+
+    Allocates sequentially: IKE (annual limit, Belka-free) first, then the best
+    remaining option by after-tax return. IKZE is always reported separately —
+    it has its own annual limit and a different tax mechanic (upfront deduction).
+
+    Assumptions for expected returns are shown in the output — the generator
+    should restate them and invite the user to override if their actual rates differ.
+    """
+    available = max(0.0, cash - locked_amount)
+
+    result: dict = {
+        "cash_total": cash,
+        "available_to_invest": available,
+    }
+
+    if locked_amount > 0:
+        result["locked"] = f"{_pln(locked_amount)} PLN — hold liquid ({locked_months} months), do not invest"
+
+    if available <= 0:
+        result["note"] = "All cash committed to locked expenses — nothing available to invest now."
+        return result
+
+    remaining = available
+    step = 1
+
+    # Step 1: IKE — Belka-free, annual limit, always fill first
+    if ike_remaining > 0:
+        ike_alloc = min(remaining, ike_remaining)
+        result[f"step{step}"] = (
+            f"{_pln(ike_alloc)} PLN → IKE | {etf_expected_return*100:.1f}% net (Belka-free, annual limit)"
+        )
+        remaining -= ike_alloc
+        step += 1
+
+    # Step 2: Best option for remainder by after-tax return
+    if remaining > 0:
+        obligacje_net = obligacje_rate * (1 - BELKA_RATE)
+        savings_net = savings_rate * (1 - BELKA_RATE)
+
+        if mortgage_rate is not None:
+            if mortgage_rate >= obligacje_net:
+                result[f"step{step}"] = (
+                    f"{_pln(remaining)} PLN → mortgage overpayment | "
+                    f"{mortgage_rate*100:.2f}% guaranteed (= loan rate, risk-free)"
+                )
+            else:
+                result[f"step{step}"] = (
+                    f"{_pln(remaining)} PLN → COI obligacje | {obligacje_net*100:.2f}% net after Belka "
+                    f"(mortgage {mortgage_rate*100:.2f}% is lower)"
+                )
+        elif obligacje_net >= savings_net:
+            result[f"step{step}"] = (
+                f"{_pln(remaining)} PLN → COI obligacje | {obligacje_net*100:.2f}% net after Belka"
+            )
+        else:
+            result[f"step{step}"] = (
+                f"{_pln(remaining)} PLN → savings account | {savings_net*100:.2f}% net after Belka"
+            )
+
+    # IKZE: separate limit, reported alongside but not deducted from available cash
+    limits = _limits()
+    ikze_cap = (
+        ikze_remaining
+        if ikze_remaining is not None
+        else (limits["ikze_self_employed"] if ikze_self_employed else limits["ikze_default"])
+    )
+    if ikze_cap > 0:
+        ikze_shield = round(ikze_cap * ikze_tax_bracket, 2)
+        result["ikze_separate"] = (
+            f"{_pln(ikze_cap)} PLN limit | {_pln(ikze_shield)} PLN/yr tax shield "
+            f"({int(ikze_tax_bracket*100)}% bracket) — separate from above"
+        )
+
+    # After-tax return comparison for all options
+    obligacje_net = obligacje_rate * (1 - BELKA_RATE)
+    savings_net = savings_rate * (1 - BELKA_RATE)
+    parts = [f"IKE {etf_expected_return*100:.1f}% (no Belka)"]
+    if mortgage_rate is not None:
+        parts.append(f"mortgage {mortgage_rate*100:.2f}% (guaranteed)")
+    parts.append(f"COI {obligacje_net*100:.2f}% (after Belka)")
+    parts.append(f"savings {savings_net*100:.2f}% (after Belka)")
+    result["after_tax_returns"] = " | ".join(parts)
+
+    result["assumptions"] = (
+        f"ETF {etf_expected_return*100:.0f}%/yr, COI {obligacje_rate*100:.1f}%/yr, "
+        f"savings {savings_rate*100:.0f}%/yr — restate in question to override"
+    )
+
+    return result

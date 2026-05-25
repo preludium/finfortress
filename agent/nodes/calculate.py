@@ -86,12 +86,14 @@ def build_calculate_node(profile_block: str = "") -> Callable[[AgentState], dict
                 ike_ikze_limits,
                 belka_tax,
                 mortgage_vs_investment,
+                cash_allocation,
             )
             dispatch = {
                 "ikze_shield":        ikze_tax_shield,
                 "ike_ikze_limits":    ike_ikze_limits,
                 "belka":              belka_tax,
                 "mortgage_vs_invest": mortgage_vs_investment,
+                "cash_allocation":    cash_allocation,
             }
             fn = dispatch.get(formula)
             if fn is None:

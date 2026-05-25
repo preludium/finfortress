@@ -189,11 +189,13 @@ class AgentState(TypedDict):
 
 | # | Title | Priority |
 |---|---|---|
-| #1 | feat: conversation memory across turns | High — needed for strategy sessions |
-| #2 | feat: financial calculator tool | High — agent can't do arithmetic |
-| #3 | feat: live ETF price fetching | Medium — profile has positions, no prices |
-| #4 | feat: strategy session mode | Medium — depends on #1 + #2 |
+| #4 | feat: strategy session mode | Medium — depends on memory + calculators |
 | #5 | chore: index remaining gov sources | Medium — podatki.gov.pl, KNF, etc. |
-| #6 | fix: filter tag/category pages from scraper | Low — 43 stub pages in index |
+| #12 | feat: ingestion sidecar files | Low — incremental updates + OCR quality |
+| #13 | feat(calculator): BK2% overpayment formula | High — window opens after 3yr lock-in |
+| #14 | feat(calculator): retirement accumulation projector | Medium — FIRE / IKE value at retirement |
+| #15 | feat(calculator): cash allocation comparison tool | **in progress** |
+| #16 | feat(calculator): rental yield vs sell (BK2% apartment) | Low — multi-year planning |
+| #18 | chore: add sources (kredyt budowlany, najem, bond rolling) | Medium |
 
 Repo: https://github.com/preludium/finfortress

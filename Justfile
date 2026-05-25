@@ -82,7 +82,7 @@ list-sources:
 # ── Smoke tests ───────────────────────────────────────────────────────────────
 
 # Run all smoke tests in sequence
-smoke: smoke-retrieval smoke-grade smoke-generate smoke-graph
+smoke: smoke-retrieval smoke-grade smoke-generate smoke-graph smoke-calculate
 
 # Test hybrid retrieval (Qdrant dense + BM25 + RRF) — no LLM calls
 smoke-retrieval:
@@ -99,6 +99,10 @@ smoke-generate:
 # Run one question end-to-end through the full agent graph
 smoke-graph:
     {{ python }} scripts/smoke_graph.py
+
+# Test financial calculators — pure unit assertions + one LLM dispatch check
+smoke-calculate:
+    {{ python }} scripts/smoke_calculate.py
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 
