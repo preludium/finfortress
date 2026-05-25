@@ -11,10 +11,14 @@ Copy the example templates to get started:
   cp data/my_sources/blogs.example.json data/my_sources/blogs.json
   cp data/my_sources/urls.example.json data/my_sources/urls.json
 
+Extracted text (PDFs + individual URLs) is saved to data/my_sources/extracted/
+as editable .txt files. Edit them to fix OCR errors or garbled scraping, then
+delete the corresponding data/raw/<name>.jsonl and re-run to re-embed.
+
 Output:
-  data/raw/<pdf_stem>.jsonl   — one file per PDF
+  data/raw/<pdf_stem>.jsonl    — one file per PDF
   data/raw/<blog_domain>.jsonl — one file per blog
-  data/raw/my_sources.jsonl   — all individual URLs
+  data/raw/my_sources.jsonl    — all individual URLs
 
 Usage:
     python scripts/ingest_my_sources.py
@@ -38,9 +42,10 @@ sys.path.insert(0, str(ROOT))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger(__name__)
 
-MY_DIR       = ROOT / "data" / "my_sources"
-RAW_DIR      = ROOT / "data" / "raw"
-ARTICLES_OUT = RAW_DIR / "my_sources.jsonl"
+MY_DIR        = ROOT / "data" / "my_sources"
+EXTRACTED_DIR = MY_DIR / "extracted"
+RAW_DIR       = ROOT / "data" / "raw"
+ARTICLES_OUT  = RAW_DIR / "my_sources.jsonl"
 
 
 def _read_manifest(filename: str) -> list[dict]:
@@ -80,6 +85,60 @@ def _source_id_from_url(url: str) -> str:
     return re.sub(r"[^\w]", "_", netloc).strip("_")
 
 
+def _url_slug(url: str) -> str:
+    parsed = urlparse(url)
+    slug = (parsed.netloc + parsed.path).rstrip("/")
+    return re.sub(r"[^\w]", "_", slug).strip("_")[:120]
+
+
+# ---------------------------------------------------------------------------
+# Extracted .txt helpers
+# ---------------------------------------------------------------------------
+
+def _txt_path_pdf(pdf_path: Path) -> Path:
+    return EXTRACTED_DIR / f"{pdf_path.stem}.txt"
+
+
+def _txt_path_url(url: str) -> Path:
+    return EXTRACTED_DIR / f"{_url_slug(url)}.txt"
+
+
+def _save_pdf_txt(txt_path: Path, pages: list[str]) -> None:
+    EXTRACTED_DIR.mkdir(parents=True, exist_ok=True)
+    lines: list[str] = []
+    for i, page in enumerate(pages, 1):
+        text = page.strip()
+        if text:
+            lines.append(f"--- Page {i} ---")
+            lines.append(text)
+            lines.append("")
+    txt_path.write_text("\n".join(lines), encoding="utf-8")
+    log.info("Saved extracted text → %s", txt_path.relative_to(ROOT))
+
+
+def _load_pdf_txt(txt_path: Path) -> list[str]:
+    """Split .txt back into per-page strings."""
+    content = txt_path.read_text(encoding="utf-8")
+    pages: list[str] = []
+    current: list[str] = []
+    for line in content.splitlines():
+        if re.match(r"^--- Page \d+ ---$", line.strip()):
+            if current:
+                pages.append("\n".join(current).strip())
+                current = []
+        else:
+            current.append(line)
+    if current:
+        pages.append("\n".join(current).strip())
+    return [p for p in pages if p]
+
+
+def _save_url_txt(txt_path: Path, text: str) -> None:
+    EXTRACTED_DIR.mkdir(parents=True, exist_ok=True)
+    txt_path.write_text(text, encoding="utf-8")
+    log.info("Saved extracted text → %s", txt_path.relative_to(ROOT))
+
+
 # ---------------------------------------------------------------------------
 # PDFs
 # ---------------------------------------------------------------------------
@@ -98,28 +157,36 @@ def _ingest_pdfs(dry_run: bool) -> int:
         source_id = _source_id_from_path(pdf_path)
         out_path  = RAW_DIR / f"{source_id}.jsonl"
         url       = f"file://{pdf_path.resolve()}"
+        txt_path  = _txt_path_pdf(pdf_path)
+        meta      = meta_by_file.get(pdf_path.name, {})
 
         if url in _load_seen(out_path):
             log.info("Already indexed: %s", pdf_path.name)
             continue
 
-        meta = meta_by_file.get(pdf_path.name, {})
-
         if dry_run:
-            log.info("[dry-run] PDF: %s → %s.jsonl  author=%r topics=%s",
-                     pdf_path.name, source_id,
-                     meta.get("author", ""), meta.get("topics", []))
+            status = "has extracted .txt" if txt_path.exists() else "will extract"
+            log.info("[dry-run] PDF: %s (%s) → %s.jsonl  topics=%s",
+                     pdf_path.name, status, source_id, meta.get("topics", []))
             total += 1
             continue
 
-        pages, meta_date, method = extract_pages(pdf_path)
-        date      = meta.get("date") or meta_date or ""
-        year      = int(date[:4]) if len(date) >= 4 else None
+        if txt_path.exists():
+            log.info("%s: using existing extracted text from %s",
+                     pdf_path.name, txt_path.relative_to(ROOT))
+            pages = _load_pdf_txt(txt_path)
+            method = "txt_override"
+        else:
+            pages_raw, meta_date_extracted, method = extract_pages(pdf_path)
+            pages = [p.strip() for p in pages_raw if p.strip()]
+            _save_pdf_txt(txt_path, pages)
+
+        date  = meta.get("date") or ""
+        year  = int(date[:4]) if len(date) >= 4 else None
         scraped_at = datetime.now(timezone.utc).isoformat()
 
         records = []
         for i, text in enumerate(pages):
-            text = text.strip()
             if len(text) < 50:
                 continue
             rec = {
@@ -144,7 +211,9 @@ def _ingest_pdfs(dry_run: bool) -> int:
 
         if records:
             _append_records(records, out_path)
-            log.info("%s: %d pages via %s → %s.jsonl", pdf_path.name, len(records), method, source_id)
+            log.info("%s: %d pages → %s.jsonl  (edit: %s)",
+                     pdf_path.name, len(records), source_id,
+                     txt_path.relative_to(ROOT))
         else:
             log.warning("%s: no extractable text", pdf_path.name)
 
@@ -207,13 +276,17 @@ def _ingest_urls(dry_run: bool) -> int:
         url = entry.get("url", "")
         if not url:
             continue
+
+        txt_path = _txt_path_url(url)
+
         if url in seen:
             log.info("Already indexed: %s", url)
             continue
 
         if dry_run:
-            log.info("[dry-run] URL: %s  author=%r topics=%s",
-                     url, entry.get("author", ""), entry.get("topics", []))
+            status = "has extracted .txt" if txt_path.exists() else "will scrape"
+            log.info("[dry-run] URL: %s (%s)  topics=%s",
+                     url, status, entry.get("topics", []))
             total += 1
             continue
 
@@ -225,18 +298,41 @@ def _ingest_urls(dry_run: bool) -> int:
             "topics":   entry.get("topics", []),
         }
 
-        try:
-            record = scrape_article(url, source_entry)
-        except Exception as exc:
-            log.warning("Scrape failed for %s: %s", url, exc)
-            continue
+        if txt_path.exists():
+            log.info("Using existing extracted text: %s", txt_path.relative_to(ROOT))
+            text = txt_path.read_text(encoding="utf-8").strip()
+            record = {
+                "url":          url,
+                "source_id":    "my_sources",
+                "source":       urlparse(url).netloc,
+                "author":       entry.get("author", ""),
+                "title":        "",
+                "date":         "",
+                "year":         None,
+                "language":     "pl",
+                "content_type": "blog_html",
+                "scraped_at":   datetime.now(timezone.utc).isoformat(),
+                "page_content": text,
+            }
+            if topics := entry.get("topics"):
+                record["topics"] = topics
+        else:
+            try:
+                record = scrape_article(url, source_entry)
+            except Exception as exc:
+                log.warning("Scrape failed for %s: %s", url, exc)
+                continue
 
-        if not record:
-            log.warning("No content extracted from %s", url)
-            continue
+            if not record:
+                log.warning("No content extracted from %s", url)
+                continue
+
+            _save_url_txt(txt_path, record.get("page_content", ""))
 
         _append_records([record], ARTICLES_OUT)
-        log.info("Scraped: %s (%d chars)", url, len(record.get("page_content", "")))
+        log.info("Indexed: %s (%d chars)  (edit: %s)",
+                 url, len(record.get("page_content", "")),
+                 txt_path.relative_to(ROOT))
         total += 1
 
     return total
@@ -260,7 +356,9 @@ def main() -> None:
     if args.dry_run:
         log.info("[dry-run] %d item(s) would be processed", total)
     else:
-        log.info("Done. %d record(s) written. Run: just embed", total)
+        log.info("Done. %d record(s) written.", total)
+        log.info("Extracted text files: %s", EXTRACTED_DIR.relative_to(ROOT))
+        log.info("To fix OCR errors: edit .txt → delete data/raw/<name>.jsonl → re-run")
 
 
 if __name__ == "__main__":

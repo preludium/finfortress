@@ -85,7 +85,8 @@ finfortress/
 │   │   ├── blogs.json                 # GITIGNORED — full-site blog crawls (url, author, topics)
 │   │   ├── blogs.example.json         # committed template
 │   │   ├── urls.json                  # GITIGNORED — individual article URLs (url, author, topics)
-│   │   └── urls.example.json          # committed template
+│   │   ├── urls.example.json          # committed template
+│   │   └── extracted/                 # GITIGNORED — editable .txt per PDF/URL (fix OCR errors here)
 │   ├── user_profile.example.md        # template — copy to user_profile.md
 │   └── user_profile.md                # GITIGNORED — personal financial data
 │

@@ -17,6 +17,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
+import re
 import sys
 import time
 import xml.etree.ElementTree as ET
@@ -56,6 +58,9 @@ SITEMAP_CANDIDATES = [
     "/sitemap.xml",
     "/feed",  # RSS fallback
 ]
+
+_skip_pattern = os.getenv("SCRAPER_SKIP_PATTERN", "")
+URL_SKIP_RE = re.compile(_skip_pattern) if _skip_pattern else None
 
 
 # ---------------------------------------------------------------------------
@@ -316,6 +321,20 @@ def scrape_source(
     # Filter to same-domain URLs (avoid following external links in sitemaps)
     base_host = urlparse(entry["url"]).netloc
     urls = [u for u in urls if urlparse(u).netloc == base_host]
+
+    # Skip non-article URLs via global regex + optional per-source patterns
+    extra_skip = entry.get("url_skip_patterns", [])
+    extra_re = re.compile("|".join(re.escape(p) for p in extra_skip)) if extra_skip else None
+    before_skip = len(urls)
+    urls = [
+        u for u in urls
+        if not (URL_SKIP_RE and URL_SKIP_RE.search(u))
+        and not (extra_re and extra_re.search(u))
+    ]
+    skipped_patterns = before_skip - len(urls)
+    if skipped_patterns:
+        log.info("%s: skipped %d non-article URLs", source_id, skipped_patterns)
+
     new_urls = [u for u in urls if u not in seen_urls]
     if limit:
         new_urls = new_urls[:limit]
@@ -326,13 +345,24 @@ def scrape_source(
             log.info("  [dry-run] %s", u)
         return len(new_urls)
 
+    title_filter = entry.get("title_filter", False)
+    filter_keywords = [kw.lower() for kw in entry.get("topics", [])] if title_filter else []
+
     count = 0
+    skipped_filter = 0
     total_new = len(new_urls)
     with out_path.open("a", encoding="utf-8") as fh:
         for i, url in enumerate(new_urls, 1):
             log.info("[%d/%d] fetching: %s", i, total_new, url)
             record = scrape_article(url, entry)
             if record:
+                if filter_keywords:
+                    title_lower = record.get("title", "").lower()
+                    if not any(kw in title_lower for kw in filter_keywords):
+                        log.debug("  ✗ title filter skip: %r", record["title"][:60])
+                        skipped_filter += 1
+                        time.sleep(POLITE_DELAY)
+                        continue
                 fh.write(json.dumps(record, ensure_ascii=False) + "\n")
                 count += 1
                 log.info("  ✓ saved  title=%r  date=%s  len=%d chars",
@@ -340,6 +370,9 @@ def scrape_source(
             else:
                 log.warning("  ✗ skipped (empty/short after clean)")
             time.sleep(POLITE_DELAY)
+
+    if skipped_filter:
+        log.info("%s: title filter skipped %d articles", source_id, skipped_filter)
 
     log.info("%s: wrote %d new records → %s", source_id, count, out_path)
     return count
@@ -362,16 +395,9 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None, help="Max articles to scrape per source (dev/test)")
     args = parser.parse_args()
 
-    manifest = _load_manifest()
-    blog_entries = [e for e in manifest if e.get("type") == "blog_html"]
-
     if args.url:
-        # Test mode: scrape one article using whichever source entry matches host
-        host = urlparse(args.url).netloc
-        entry = next(
-            (e for e in blog_entries if urlparse(e["url"]).netloc == host),
-            {"id": "manual", "author": "unknown", "language": "pl", "type": "blog_html"},
-        )
+        # Test mode: no manifest needed
+        entry = {"id": "manual", "author": "unknown", "language": "pl", "type": "blog_html"}
         record = scrape_article(args.url, entry)
         if record:
             print(json.dumps(record, ensure_ascii=False, indent=2))
@@ -380,6 +406,9 @@ def main() -> None:
         else:
             log.error("Failed to scrape %s", args.url)
         return
+
+    manifest = _load_manifest()
+    blog_entries = [e for e in manifest if e.get("type") == "blog_html"]
 
     if args.source:
         entries = [e for e in blog_entries if e["id"] == args.source]

@@ -1,8 +1,8 @@
 [
-  {
-    "url": "https://example-blog.pl/",
-    "author": "Author Name",
-    "topics": ["ETF", "IKE", "IKZE"],
-    "notes": "Full sitemap crawl — every article indexed"
-  }
+    {
+        "url": "https://example-blog.pl/",
+        "author": "Author Name",
+        "topics": ["ETF", "IKE", "IKZE"],
+        "notes": "Full sitemap crawl — every article indexed"
+    }
 ]

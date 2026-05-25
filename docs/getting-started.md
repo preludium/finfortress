@@ -219,6 +219,24 @@ just ingest-sources-dry
 
 Each chunk is hashed with `SHA-256(url + chunk_index + content)`. On subsequent runs, chunks already in Qdrant are skipped. It's safe to re-run `just ingest-sources` — it will not duplicate data.
 
+### Fixing extraction errors
+
+After processing, each PDF and individual URL is saved as an editable `.txt` file in `data/my_sources/extracted/`:
+
+```
+data/my_sources/extracted/
+  Umowa_kredytowa.txt          ← extracted PDF text, one --- Page N --- per page
+  example_com_article.txt      ← scraped article text
+```
+
+If OCR produced garbled text or the scraper missed content:
+
+1. Open the `.txt` file and fix the text directly
+2. Delete the corresponding `data/raw/<name>.jsonl` to clear the old indexed version
+3. Run `just ingest-sources` — reads the corrected `.txt` instead of re-extracting
+
+Blog crawls (from `blogs.json`) do not produce editable `.txt` files — they have too many articles to manage individually.
+
 ### Test a single article (without ingesting)
 
 ```bash

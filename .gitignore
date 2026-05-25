@@ -30,9 +30,11 @@ data/user_profile.md
 # Manage with: data/my_sources/pdfs.json, blogs.json, urls.json
 # Templates committed at: data/pdfs.example.json, blogs.example.json, urls.example.json
 data/my_sources/*
+data/my_sources/extracted/*
 !data/my_sources/blogs.example.json
 !data/my_sources/pdfs.example.json
 !data/my_sources/urls.example.json
+!data/my_sources/extracted/
 
 # Conversation memory — contains private chat history
 data/memory.sqlite
