@@ -8,6 +8,7 @@ Available formulas:
 - belka              — Belka tax on capital gains
 - mortgage_vs_invest — mortgage overpayment vs investing comparison (one-on-one)
 - cash_allocation    — idle cash split across IKE / obligacje / mortgage / savings
+- bk2_overpayment   — BK2% (Bezpieczny Kredyt 2%) overpayment analysis, subsidy-aware two-phase model
 - none               — question is a calculation but doesn't match any formula
 
 Rules:
@@ -20,10 +21,11 @@ Rules:
 - For cash_allocation: prefer over mortgage_vs_invest when user asks where to put multiple amounts or compares multiple options at once.
 - For cash_allocation mortgage_rate: compute WIRON + margin from profile (e.g. WIRON 3M ~5.97% + 1.5% = 0.0747). Omit if not mentioned.
 - For cash_allocation ike_remaining: read from profile IKE limit section. Omit if not mentioned.
+- For bk2_overpayment: use over mortgage_vs_invest when user explicitly mentions BK2%, bezpieczny kredyt, or dopłaty BGK. monthly_rate is always 0.001667 (= 0.02/12). full_monthly_rate: compute (WIRON + margin) / 12 from profile. subsidy_end and loan_end: read from profile (e.g. "dopłaty do 2033-07" → "2033-07-01"); derive loan_end from origination_date + loan_term. one_time: true for "jednorazowa nadpłata", false for "miesięczna nadpłata". in_ike: true only if user says the investment alternative is inside IKE.
 
 Schema:
 {
-  "formula": "ikze_shield|ike_ikze_limits|belka|mortgage_vs_invest|cash_allocation|none",
+  "formula": "ikze_shield|ike_ikze_limits|belka|mortgage_vs_invest|cash_allocation|bk2_overpayment|none",
   "params": {}
 }
 
@@ -32,8 +34,10 @@ ike_ikze_limits params:  year (int), ytd_ike (float), ytd_ikze (float)
 belka params:            gain (float), in_ike (bool), in_ikze (bool)
 mortgage_vs_invest params: loan_balance (float), loan_rate (float), investment_return (float), belka_applies (bool), horizon_years (int)
 cash_allocation params:  cash (float), ike_remaining (float), mortgage_rate (float), ikze_tax_bracket (float), ikze_self_employed (bool), locked_amount (float), locked_months (int), savings_rate (float), obligacje_rate (float), etf_expected_return (float)
+bk2_overpayment params:  balance (float), full_monthly_rate (float), overpayment (float), subsidy_end (str ISO date), loan_end (str ISO date), monthly_rate (float, default 0.001667), origination_date (str ISO date), own_contribution (float), one_time (bool), compare_return (float), in_ike (bool)
 
 Trigger keywords for cash_allocation: gdzie ulokować, co z gotówką, alokacja, podzielić gotówkę, idle cash, wolna gotówka, gdzie wpłacić, co kupić za.
+Trigger keywords for bk2_overpayment: nadpłata, nadpłacić, wcześniejsza spłata, BK2%, bezpieczny kredyt, dopłaty BGK, nadpłacić kredyt BK2.
 """
 
 CALCULATE_USER = """\

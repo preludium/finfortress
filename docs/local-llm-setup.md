@@ -91,7 +91,7 @@ for this corpus — no reason to swap.
 With oMLX running:
 
 ```bash
-curl http://localhost:10000/v1/chat/completions \
+curl http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "Qwen2.5-32B-Instruct-4bit",

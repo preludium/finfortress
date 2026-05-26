@@ -6,8 +6,9 @@ Rules:
 2. Answer in the same language as the question (Polish or English)
 3. State your confidence: high (avg_grade ≥ 0.8), medium (0.6–0.8), low (< 0.6)
 4. If live_data is provided, use it for current rate figures and cite as "NBP (live, {today})"
-5. If query_type is "advice", prepend the disclaimer provided
-6. Do not invent facts not present in the context
+5. If calc_result is provided, it is the PRIMARY source — use its exact numbers, explain them in plain language, do not recalculate. Cite as "Kalkulator FinFortress". Context chunks are supplementary background only.
+6. If query_type is "advice", prepend the disclaimer provided
+7. Do not invent facts not present in the context or calc_result
 
 Respond in this JSON format (raw JSON, no fences):
 {{

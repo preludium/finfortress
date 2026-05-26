@@ -47,10 +47,13 @@ MEMORY_DB         = ROOT / "data" / "memory.sqlite"
 def _route_after_grade(state: AgentState) -> str:
     if not state.get("needs_rewrite", False):
         return "generate"
-    # Live data covers the rate answer — skip rewrite loop, go to generate
-    # (retrieved context quality is expected to be low for rate queries)
+    # Live data or a calculator result covers the answer — skip rewrite loop.
+    # RAG context quality is irrelevant when the primary source is a live API or formula.
     if state.get("live_data"):
         log.info("Live data present — skipping rewrite loop, proceeding to generate")
+        return "generate"
+    if state.get("calc_result"):
+        log.info("Calc result present — skipping rewrite loop, proceeding to generate")
         return "generate"
     if state.get("rewrite_count", 0) >= MAX_REWRITES:
         if state.get("avg_grade", 0.0) >= GRADE_THRESHOLD:
@@ -128,5 +131,7 @@ def ask(question: str, app=None, config: dict | None = None) -> dict:
     """Run a question through the compiled graph. Builds graph if not provided."""
     if app is None:
         app = build_graph()
+    if config is None:
+        config = {"configurable": {"thread_id": "default"}}
     state = {**INITIAL_STATE, "question": question}
-    return app.invoke(state, config or {})
+    return app.invoke(state, config)

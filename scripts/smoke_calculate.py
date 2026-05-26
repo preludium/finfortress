@@ -22,6 +22,7 @@ from agent.tools.calculator import (
     mortgage_vs_investment,
     ikze_tax_shield,
     belka_tax,
+    bk2_overpayment,
 )
 
 FAIL = 0
@@ -135,6 +136,104 @@ check("IKE: tax = 0",                        r13["tax"] == 0.0)
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# bk2_overpayment
+# ---------------------------------------------------------------------------
+
+print("\n=== bk2_overpayment ===")
+
+# Baseline: 500k PLN, 7.47% full rate, 10yr Phase 1 remaining, 15yr Phase 2
+# Loan originated 2023-07-01, subsidy_end 2033-07-01, loan_end 2048-07-01
+# Today is 2026-05-26 → ~34 months elapsed → just past 3-yr lock-in
+BK_BALANCE       = 480_000.0
+BK_FULL_RATE     = 0.0747 / 12
+BK_SUBSIDY_END   = "2033-07-01"
+BK_LOAN_END      = "2048-07-01"
+BK_ORIGINATION   = "2023-07-01"
+
+# One-time 50k overpayment — should NOT be at risk (>3 years)
+r_one = bk2_overpayment(
+    balance=BK_BALANCE,
+    full_monthly_rate=BK_FULL_RATE,
+    overpayment=50_000,
+    subsidy_end=BK_SUBSIDY_END,
+    loan_end=BK_LOAN_END,
+    origination_date=BK_ORIGINATION,
+)
+check("one-time: subsidy_at_risk=False after lock-in",  r_one["subsidy_at_risk"] is False)
+check("one-time: interest_saved_total > 0",             "0 PLN" not in r_one["interest_saved_total"])
+check("one-time: phase2 saving > phase1 saving",        # Phase 2 dominates (more months at full rate)
+      int(r_one["interest_saved_phase2"].split()[0].replace(" ", "").replace("\xa0", "")) >
+      int(r_one["interest_saved_phase1"].split()[0].replace(" ", "").replace("\xa0", "")))
+check("one-time: months_shortened > 0",                 r_one["months_shortened"] > 0)
+check("one-time: recommendation is overpay (Phase 2 dominates)", r_one["recommendation"] == "overpay")
+check("one-time: equivalent_return > 5%",               # Phase 2 (15yr @ 7.47%) dominates
+      float(r_one["equivalent_annual_return"].rstrip("%")) > 5.0)
+
+# Scenario where investing wins: long Phase 1 (9yr), very short Phase 2 (3yr)
+r_invest = bk2_overpayment(
+    balance=480_000,
+    full_monthly_rate=0.075 / 12,
+    overpayment=50_000,
+    subsidy_end="2035-07-01",   # ~9 yr Phase 1
+    loan_end="2038-07-01",      # ~3 yr Phase 2 — savings at full rate are small
+    origination_date=BK_ORIGINATION,
+)
+check("invest scenario: recommendation is invest",             r_invest["recommendation"] == "invest")
+check("invest scenario: equivalent_return < 5%",               # short Phase 2 → blended return low
+      float(r_invest["equivalent_annual_return"].rstrip("%")) < 5.0)
+
+# Monthly 2k/mth overpayment
+r_mo = bk2_overpayment(
+    balance=BK_BALANCE,
+    full_monthly_rate=BK_FULL_RATE,
+    overpayment=2_000,
+    subsidy_end=BK_SUBSIDY_END,
+    loan_end=BK_LOAN_END,
+    origination_date=BK_ORIGINATION,
+    one_time=False,
+)
+check("monthly: subsidy_at_risk=False",                 r_mo["subsidy_at_risk"] is False)
+check("monthly: interest_saved_total > 0",              "0 PLN" not in r_mo["interest_saved_total"])
+check("monthly: months_shortened > 0",                  r_mo["months_shortened"] > 0)
+
+# Lock-in scenario: originated 2024-06-01 → <36 months → risky large overpayment
+r_lock = bk2_overpayment(
+    balance=500_000,
+    full_monthly_rate=BK_FULL_RATE,
+    overpayment=100_000,
+    subsidy_end="2034-06-01",
+    loan_end="2049-06-01",
+    origination_date="2024-06-01",
+    own_contribution=50_000,   # 100k + 50k = 150k ≤ 200k → should be safe via cumulative cap
+)
+check("lock-in: cumulative cap 150k ≤ 200k → not at risk", r_lock["subsidy_at_risk"] is False)
+
+r_lock2 = bk2_overpayment(
+    balance=500_000,
+    full_monthly_rate=BK_FULL_RATE,
+    overpayment=160_000,
+    subsidy_end="2034-06-01",
+    loan_end="2049-06-01",
+    origination_date="2024-06-01",
+    own_contribution=50_000,   # 160k + 50k = 210k > 200k → at risk
+)
+check("lock-in: 210k > 200k cumulative → at risk",      r_lock2["subsidy_at_risk"] is True)
+check("lock-in: note contains WARNING",                  "WARNING" in r_lock2.get("note", ""))
+
+# Edge: Phase 1 already over (subsidy_end in the past) → pure Phase 2
+r_p2only = bk2_overpayment(
+    balance=300_000,
+    full_monthly_rate=BK_FULL_RATE,
+    overpayment=30_000,
+    subsidy_end="2024-01-01",   # already passed
+    loan_end="2048-07-01",
+)
+check("phase1=0: no Phase 1 interest saved",            r_p2only["interest_saved_phase1"].startswith("0 PLN"))
+check("phase1=0: Phase 2 saving > 0",                   "0 PLN" not in r_p2only["interest_saved_phase2"])
+check("phase1=0: equivalent_return near full rate",
+      float(r_p2only["equivalent_annual_return"].rstrip("%")) > 5.0)
 
 print(f"\nUnit tests: {'ALL PASSED' if FAIL == 0 else f'{FAIL} FAILED'}")
 

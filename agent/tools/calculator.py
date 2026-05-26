@@ -5,6 +5,7 @@ No external calls — all inputs come from the question / user profile.
 
 from __future__ import annotations
 
+import math
 from datetime import date
 
 # ---------------------------------------------------------------------------
@@ -267,5 +268,191 @@ def cash_allocation(
         f"ETF {etf_expected_return*100:.0f}%/yr, COI {obligacje_rate*100:.1f}%/yr, "
         f"savings {savings_rate*100:.0f}%/yr — restate in question to override"
     )
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# 6. BK2% overpayment — two-phase model
+# ---------------------------------------------------------------------------
+
+def bk2_overpayment(
+    balance: float,
+    full_monthly_rate: float,
+    overpayment: float,
+    subsidy_end: str,
+    loan_end: str,
+    monthly_rate: float = 0.02 / 12,
+    origination_date: str | None = None,
+    own_contribution: float = 0.0,
+    one_time: bool = True,
+    compare_return: float = 0.07,
+    in_ike: bool = False,
+) -> dict:
+    """
+    BK2% (Bezpieczny Kredyt 2%) overpayment analysis.
+
+    Phase 1 (until subsidy_end): raty malejące at 2% effective rate — BGK covers the spread.
+    Phase 2 (subsidy_end to loan_end): standard annuity at full market rate.
+
+    Overpaying during Phase 1 saves interest only at the 2% borrower rate (not the full rate).
+    The larger saving comes from lower balance at Phase 2 start, where full rate applies.
+
+    Phase 2 convention: shorten term, keep base PMT (standard Polish mortgage overpayment default).
+
+    balance           — current remaining principal (PLN)
+    full_monthly_rate — full contractual rate / 12 (e.g. (WIRON + margin) / 12)
+    overpayment       — lump-sum or monthly extra payment (PLN)
+    subsidy_end       — ISO date of expected 120th scheduled instalment
+    loan_end          — ISO date of final scheduled instalment
+    monthly_rate      — effective rate during subsidy = 0.02/12 (always 2%/12 for BK2%)
+    origination_date  — ISO date loan was originated (for 3-yr lock-in check)
+    own_contribution  — wkład własny at origination (for 200k cumulative cap check)
+    one_time          — True: lump-sum; False: monthly extra payment
+    compare_return    — annual gross investment alternative (default 0.07)
+    in_ike            — True: no Belka on investment return
+    """
+    today = date.today()
+    sub_end = date.fromisoformat(subsidy_end)
+    loan_end_d = date.fromisoformat(loan_end)
+
+    # ── Time horizons ────────────────────────────────────────────────────────
+    phase1_months = max(0, (sub_end.year - today.year) * 12 + (sub_end.month - today.month))
+    total_months = max(1, (loan_end_d.year - today.year) * 12 + (loan_end_d.month - today.month))
+    phase2_months = max(0, total_months - phase1_months)
+
+    # Fixed capital portion per month (raty malejące — equal capital repayment)
+    cap_per_month = balance / total_months
+
+    # ── Lock-in check (§4 ust. 6 pkt 10) ───────────────────────────────────
+    in_lockup = False
+    if origination_date:
+        orig = date.fromisoformat(origination_date)
+        months_elapsed = (today.year - orig.year) * 12 + (today.month - orig.month)
+        in_lockup = months_elapsed < 36
+
+    # Net monthly instalment (conservative: current balance, not origination balance)
+    # §4 ust. 6 pkt 10d uses the *first* instalment at origination — actual cap is slightly higher.
+    net_installment = cap_per_month + balance * monthly_rate
+
+    if one_time:
+        cumulative_ok = (overpayment + own_contribution) <= 200_000
+        monthly_cap_ok = overpayment <= net_installment
+        subsidy_safe = (not in_lockup) or cumulative_ok or monthly_cap_ok
+    else:
+        subsidy_safe = (not in_lockup) or (overpayment <= net_installment)
+    subsidy_at_risk = not subsidy_safe
+
+    # ── Phase 1 simulation (raty malejące) ──────────────────────────────────
+    def _sim_p1(start_ks: float, extra_monthly: float = 0.0) -> tuple[float, float, int]:
+        ks = max(0.0, start_ks)
+        interest = 0.0
+        months = 0
+        for _ in range(phase1_months):
+            if ks < 0.01:
+                break
+            interest += ks * monthly_rate
+            ks = max(0.0, ks - cap_per_month - extra_monthly)
+            months += 1
+        return interest, ks, months
+
+    i1_base, bp2_base, p1m_base = _sim_p1(balance)
+
+    if one_time:
+        i1_op, bp2_op, p1m_op = _sim_p1(balance - min(overpayment, balance))
+    else:
+        i1_op, bp2_op, p1m_op = _sim_p1(balance, extra_monthly=overpayment)
+
+    # ── Phase 2 (shorten term, keep base PMT) ───────────────────────────────
+    r = full_monthly_rate
+
+    if bp2_base > 0.01 and phase2_months > 0 and r > 0:
+        pmt_base = bp2_base * r / (1 - (1 + r) ** -phase2_months)
+        i2_base = pmt_base * phase2_months - bp2_base
+    else:
+        pmt_base = 0.0
+        i2_base = 0.0
+
+    if bp2_op < 0.01:
+        i2_op = 0.0
+        months_shortened_p2 = phase2_months
+    elif pmt_base > 0 and r > 0 and bp2_op * r < pmt_base:
+        n_new = -math.log(1 - bp2_op * r / pmt_base) / math.log(1 + r)
+        i2_op = pmt_base * n_new - bp2_op
+        months_shortened_p2 = round(phase2_months - n_new)
+    else:
+        i2_op = i2_base
+        months_shortened_p2 = 0
+
+    # ── Totals ───────────────────────────────────────────────────────────────
+    interest_saved_p1 = max(0.0, round(i1_base - i1_op, 2))
+    interest_saved_p2 = max(0.0, round(i2_base - i2_op, 2))
+    interest_saved_total = round(interest_saved_p1 + interest_saved_p2, 2)
+    months_shortened = max(0, p1m_base - p1m_op) + months_shortened_p2
+
+    # ── Equivalent annual return (sim-based) ─────────────────────────────────
+    # For one-time: single PLN works from t=0 over full remaining term.
+    # For monthly: each PLN works from its payment date; avg holding period ≈
+    #   midpoint between total_months (first payment) and phase2_months (last payment).
+    if one_time:
+        total_invested = overpayment
+        avg_months = total_months
+    else:
+        total_invested = overpayment * max(p1m_op, 1)
+        avg_months = (total_months + phase2_months) / 2
+
+    if total_invested > 0 and avg_months > 0:
+        equivalent_annual_return = round(
+            interest_saved_total / total_invested / (avg_months / 12), 4
+        )
+    else:
+        equivalent_annual_return = 0.0
+
+    # ── Recommendation ───────────────────────────────────────────────────────
+    compare_rate_net = compare_return if in_ike else round(compare_return * (1 - BELKA_RATE), 4)
+    recommendation = "overpay" if equivalent_annual_return >= compare_rate_net else "invest"
+
+    # ── Output ───────────────────────────────────────────────────────────────
+    overpay_type = "lump-sum" if one_time else "monthly"
+    full_rate_pct = round(full_monthly_rate * 12 * 100, 2)
+
+    result: dict = {
+        "balance": f"{_pln(balance)} PLN",
+        "overpayment": f"{_pln(overpayment)} PLN ({overpay_type})",
+        "phase1_months_remaining": phase1_months,
+        "phase2_months_remaining": phase2_months,
+        "subsidy_at_risk": subsidy_at_risk,
+        "interest_saved_phase1": (
+            f"{_pln(interest_saved_p1)} PLN "
+            f"(2% effective rate — borrower portion only; BGK dopłata shrinks proportionally)"
+        ),
+        "interest_saved_phase2": (
+            f"{_pln(interest_saved_p2)} PLN "
+            f"(full rate {full_rate_pct:.2f}% after subsidy ends)"
+        ),
+        "interest_saved_total": f"{_pln(interest_saved_total)} PLN",
+        "months_shortened": months_shortened,
+        "equivalent_annual_return": f"{equivalent_annual_return * 100:.2f}%",
+        "compare_return_net": (
+            f"{compare_rate_net * 100:.2f}% "
+            f"({'IKE — no Belka tax' if in_ike else 'after 19% Belka tax'})"
+        ),
+        "recommendation": recommendation,
+    }
+
+    if subsidy_at_risk:
+        result["note"] = (
+            f"WARNING: loan within 3-year lock-in (§4 ust. 6 pkt 10). "
+            f"Overpayment of {_pln(overpayment)} PLN may trigger loss of all BGK subsidies. "
+            f"Safe if: after 3 years from origination, OR total overpayment + own contribution "
+            f"≤200 000 PLN, OR overpayment ≤ net monthly instalment ({_pln(net_installment)} PLN)."
+        )
+    else:
+        result["note"] = (
+            f"Effective overpayment return: {equivalent_annual_return * 100:.2f}%/yr "
+            f"vs net investment return: {compare_rate_net * 100:.2f}%/yr → {recommendation}. "
+            f"Phase 1 saves at 2% (small); Phase 2 saves at {full_rate_pct:.2f}% (large). "
+            f"The closer to subsidy end, the more attractive overpayment becomes."
+        )
 
     return result
