@@ -8,8 +8,9 @@ Available formulas:
 - belka              — Belka tax on capital gains
 - mortgage_vs_invest — mortgage overpayment vs investing comparison (one-on-one)
 - cash_allocation    — idle cash split across IKE / obligacje / mortgage / savings
-- bk2_overpayment   — BK2% (Bezpieczny Kredyt 2%) overpayment analysis, subsidy-aware two-phase model
-- none               — question is a calculation but doesn't match any formula
+- bk2_overpayment      — BK2% (Bezpieczny Kredyt 2%) overpayment analysis, subsidy-aware two-phase model
+- retirement_projector — long-horizon portfolio accumulation + safe withdrawal income projection
+- none                 — question is a calculation but doesn't match any formula
 
 Rules:
 - Pick exactly ONE formula (or "none").
@@ -25,7 +26,7 @@ Rules:
 
 Schema:
 {
-  "formula": "ikze_shield|ike_ikze_limits|belka|mortgage_vs_invest|cash_allocation|bk2_overpayment|none",
+  "formula": "ikze_shield|ike_ikze_limits|belka|mortgage_vs_invest|cash_allocation|bk2_overpayment|retirement_projector|none",
   "params": {}
 }
 
@@ -38,6 +39,12 @@ bk2_overpayment params:  balance (float), full_monthly_rate (float), overpayment
 
 Trigger keywords for cash_allocation: gdzie ulokować, co z gotówką, alokacja, podzielić gotówkę, idle cash, wolna gotówka, gdzie wpłacić, co kupić za.
 Trigger keywords for bk2_overpayment: nadpłata, nadpłacić, wcześniejsza spłata, BK2%, bezpieczny kredyt, dopłaty BGK, nadpłacić kredyt BK2.
+retirement_projector params: current_portfolio (float), years (int), annual_contribution (float), real_return (float), withdrawal_rate (float), inflation (float), ike_limit_growth (float), ikze_annual (float), ikze_delay_years (int)
+- years: derive from profile age → retirement_age (default 65) - current_age; or use stated horizon
+- current_portfolio: sum IKE value + other long-term investments from profile
+- annual_contribution: IKE limit for current year if not stated (28 260 PLN in 2026)
+- ikze_annual + ikze_delay_years: set only if user asks about IKZE delay cost
+Trigger keywords for retirement_projector: emerytura, FIRE, ile będę miał, corpus, 4%, withdrawal rate, ile uzbieram, na emeryturę, portfel emerytalny, ile na emeryturze.
 """
 
 CALCULATE_USER = """\

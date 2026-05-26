@@ -23,6 +23,7 @@ from agent.tools.calculator import (
     ikze_tax_shield,
     belka_tax,
     bk2_overpayment,
+    retirement_projector,
 )
 
 FAIL = 0
@@ -234,6 +235,66 @@ check("phase1=0: no Phase 1 interest saved",            r_p2only["interest_saved
 check("phase1=0: Phase 2 saving > 0",                   "0 PLN" not in r_p2only["interest_saved_phase2"])
 check("phase1=0: equivalent_return near full rate",
       float(r_p2only["equivalent_annual_return"].rstrip("%")) > 5.0)
+
+# ---------------------------------------------------------------------------
+# retirement_projector
+# ---------------------------------------------------------------------------
+
+print("\n=== retirement_projector ===")
+
+# Base: 28yr old, 37yr horizon (retire at 65), 50k IKE, 5% real return
+r_ret = retirement_projector(
+    current_portfolio=50_000,
+    years=37,
+    annual_contribution=28_260,
+    real_return=0.05,
+    withdrawal_rate=0.04,
+)
+check("base: portfolio_real key present",       "portfolio_real" in r_ret)
+check("base: monthly_income_real key present",  "monthly_income_real" in r_ret)
+check("base: sensitivity_3pct present",         "sensitivity_3pct" in r_ret)
+check("base: sensitivity_7pct present",         "sensitivity_7pct" in r_ret)
+check("base: ike_limit_growth_scenario present","ike_limit_growth_scenario" in r_ret)
+check("base: assumptions present",             "assumptions" in r_ret)
+
+# Manual check: FV = 50000*(1.05)^37 + 28260*((1.05)^37 - 1)/0.05
+import math as _math
+_fv_expected = 50_000 * 1.05**37 + 28_260 * (1.05**37 - 1) / 0.05
+_income_expected = _fv_expected * 0.04
+# Extract numeric value from portfolio_real string (format: "X XXX PLN ...")
+_portfolio_str = r_ret["portfolio_real"].split(" PLN")[0].replace(" ", "").replace("\xa0", "").replace(",", "")
+_portfolio_actual = float(_portfolio_str)
+check("base: portfolio_real within 1% of formula",
+      abs(_portfolio_actual - _fv_expected) / _fv_expected < 0.01)
+
+# Sensitivity ordering: 3% < base(5%) < 7%
+def _extract_pln(s):
+    return float(s.split(" PLN")[0].replace(" ", "").replace("\xa0", "").replace(",", ""))
+
+check("sensitivity: 3% < 5% < 7%",
+      _extract_pln(r_ret["sensitivity_3pct"]) <
+      _extract_pln(r_ret["sensitivity_base"]) <
+      _extract_pln(r_ret["sensitivity_7pct"]))
+
+# IKZE delay cost: 5yr delay on 16 956 PLN/yr, 37yr horizon
+r_ikze = retirement_projector(
+    current_portfolio=50_000,
+    years=37,
+    ikze_annual=16_956,
+    ikze_delay_years=5,
+)
+check("ikze_delay: key present",               "ikze_delay_cost" in r_ikze)
+check("ikze_delay: cost > 0",                  _extract_pln(r_ikze["ikze_delay_cost"].split("costs ")[1]) > 0)
+
+# Edge: years=0 → error note
+r_zero = retirement_projector(current_portfolio=100_000, years=0)
+check("edge: years=0 returns note",            "note" in r_zero)
+
+# Nominal > real (inflation adds to nominal value)
+_real_val    = _extract_pln(r_ret["portfolio_real"])
+_nominal_str = r_ret["portfolio_nominal"].split(" PLN")[0].replace(" ", "").replace("\xa0", "").replace(",", "")
+_nominal_val = float(_nominal_str)
+check("nominal > real (inflation effect)",     _nominal_val > _real_val)
 
 print(f"\nUnit tests: {'ALL PASSED' if FAIL == 0 else f'{FAIL} FAILED'}")
 

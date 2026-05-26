@@ -41,6 +41,9 @@ data/memory.sqlite
 data/memory.sqlite-shm
 data/memory.sqlite-wal
 
+# BM25 index cache — derived from Qdrant, rebuilt automatically when stale
+data/bm25_cache.pkl
+
 # Downloaded files
 *.pdf
 *.xlsx

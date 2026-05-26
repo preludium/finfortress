@@ -134,11 +134,11 @@ def build_generate_node(profile_block: str = "") -> Callable[[AgentState], dict]
         citations: list[Citation] = []
         for c in parsed.get("citations", []):
             citations.append({
-                "source":  str(c.get("source", "")),
-                "author":  str(c.get("author", "")),
-                "url":     str(c.get("url", "")),
-                "title":   str(c.get("title", "")),
-                "date":    str(c.get("date", "")),
+                "source":  str(c.get("source") or ""),
+                "author":  str(c.get("author") or ""),
+                "url":     str(c.get("url") or ""),
+                "title":   str(c.get("title") or ""),
+                "date":    str(c.get("date") or ""),
             })
 
         disclaimer = ADVICE_DISCLAIMER if query_type == "advice" else None

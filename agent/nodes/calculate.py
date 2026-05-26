@@ -88,14 +88,16 @@ def build_calculate_node(profile_block: str = "") -> Callable[[AgentState], dict
                 mortgage_vs_investment,
                 cash_allocation,
                 bk2_overpayment,
+                retirement_projector,
             )
             dispatch = {
-                "ikze_shield":        ikze_tax_shield,
-                "ike_ikze_limits":    ike_ikze_limits,
-                "belka":              belka_tax,
-                "mortgage_vs_invest": mortgage_vs_investment,
-                "cash_allocation":    cash_allocation,
-                "bk2_overpayment":    bk2_overpayment,
+                "ikze_shield":           ikze_tax_shield,
+                "ike_ikze_limits":       ike_ikze_limits,
+                "belka":                 belka_tax,
+                "mortgage_vs_invest":    mortgage_vs_investment,
+                "cash_allocation":       cash_allocation,
+                "bk2_overpayment":       bk2_overpayment,
+                "retirement_projector":  retirement_projector,
             }
             fn = dispatch.get(formula)
             if fn is None:

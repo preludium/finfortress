@@ -456,3 +456,137 @@ def bk2_overpayment(
         )
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# 7. Retirement accumulation projector
+# ---------------------------------------------------------------------------
+
+def _fv_constant(pv: float, pmt: float, r: float, n: int) -> float:
+    """Future value: lump sum + constant annual end-of-year contributions."""
+    if abs(r) < 1e-10:
+        return pv + pmt * n
+    return pv * (1 + r) ** n + pmt * ((1 + r) ** n - 1) / r
+
+
+def _fv_growing(pv: float, pmt: float, r: float, g: float, n: int) -> float:
+    """Future value: lump sum + growing annuity (first payment = pmt, grows at g/yr)."""
+    fv_lump = pv * (1 + r) ** n
+    if abs(r - g) < 1e-10:
+        fv_annuity = pmt * n * (1 + r) ** (n - 1)
+    else:
+        fv_annuity = pmt * ((1 + r) ** n - (1 + g) ** n) / (r - g)
+    return fv_lump + fv_annuity
+
+
+def retirement_projector(
+    current_portfolio: float,
+    years: int,
+    annual_contribution: float = 28_260.0,
+    real_return: float = 0.05,
+    withdrawal_rate: float = 0.04,
+    inflation: float = 0.025,
+    ike_limit_growth: float = 0.03,
+    ikze_annual: float = 0.0,
+    ikze_delay_years: int = 0,
+) -> dict:
+    """
+    Long-horizon retirement accumulation projector.
+
+    Projects portfolio value at retirement under base + sensitivity scenarios,
+    then converts to sustainable annual and monthly income via the safe withdrawal rate.
+
+    current_portfolio  — current invested portfolio value (PLN, IKE + other)
+    years              — accumulation horizon (years until retirement)
+    annual_contribution — PLN/year added to portfolio (default: IKE limit 2026)
+    real_return        — annual real return after inflation (default 0.05 = 5%)
+    withdrawal_rate    — safe withdrawal rate at retirement (default 0.04 = 4% rule)
+    inflation          — assumed annual inflation for nominal conversion (default 0.025)
+    ike_limit_growth   — assumed annual IKE limit increase (default 0.03 = 3%/yr)
+    ikze_annual        — annual IKZE contribution to cost a delay (0 = skip)
+    ikze_delay_years   — years of IKZE opening delay to price (0 = skip)
+
+    Real values are in today's PLN (inflation-adjusted).
+    Nominal values are in future PLN (not adjusted for purchasing power).
+    """
+    if years <= 0:
+        return {"note": "years must be > 0"}
+
+    # ── Base scenario (constant contributions, real return) ──────────────────
+    portfolio_real = _fv_constant(current_portfolio, annual_contribution, real_return, years)
+    portfolio_nominal = portfolio_real * (1 + inflation) ** years
+
+    annual_income_real    = portfolio_real * withdrawal_rate
+    monthly_income_real   = annual_income_real / 12
+    annual_income_nominal = portfolio_nominal * withdrawal_rate
+    monthly_income_nominal = annual_income_nominal / 12
+
+    # ── IKE limit growing annuity scenario ───────────────────────────────────
+    portfolio_ike_growth = _fv_growing(
+        current_portfolio, annual_contribution, real_return, ike_limit_growth, years
+    )
+    annual_income_ike_growth = portfolio_ike_growth * withdrawal_rate
+
+    # ── Sensitivity: 3% / base / 7% real return ──────────────────────────────
+    scenarios: dict[str, tuple[float, float]] = {}
+    for label, r in [("pessimistic_3pct", 0.03), ("base", real_return), ("optimistic_7pct", 0.07)]:
+        fv = _fv_constant(current_portfolio, annual_contribution, r, years)
+        scenarios[label] = (fv, fv * withdrawal_rate)
+
+    # ── IKZE delay cost (optional) ───────────────────────────────────────────
+    ikze_delay_cost: float | None = None
+    if ikze_annual > 0 and 0 < ikze_delay_years < years:
+        fv_now     = _fv_constant(0, ikze_annual, real_return, years)
+        fv_delayed = _fv_constant(0, ikze_annual, real_return, years - ikze_delay_years)
+        ikze_delay_cost = fv_now - fv_delayed
+
+    # ── Output ───────────────────────────────────────────────────────────────
+    result: dict = {
+        "horizon_years": years,
+        "annual_contribution": f"{_pln(annual_contribution)} PLN/yr",
+        "portfolio_real": (
+            f"{_pln(portfolio_real)} PLN "
+            f"(in today's PLN, {real_return*100:.0f}% real return)"
+        ),
+        "portfolio_nominal": (
+            f"{_pln(portfolio_nominal)} PLN "
+            f"(future PLN, assuming {inflation*100:.1f}%/yr inflation)"
+        ),
+        "annual_income_real": (
+            f"{_pln(annual_income_real)} PLN/yr "
+            f"({withdrawal_rate*100:.0f}% withdrawal — today's PLN)"
+        ),
+        "monthly_income_real": f"{_pln(monthly_income_real)} PLN/mth",
+        "sensitivity_3pct": (
+            f"{_pln(scenarios['pessimistic_3pct'][0])} PLN portfolio → "
+            f"{_pln(scenarios['pessimistic_3pct'][1])} PLN/yr income"
+        ),
+        "sensitivity_base": (
+            f"{_pln(scenarios['base'][0])} PLN portfolio → "
+            f"{_pln(scenarios['base'][1])} PLN/yr income"
+        ),
+        "sensitivity_7pct": (
+            f"{_pln(scenarios['optimistic_7pct'][0])} PLN portfolio → "
+            f"{_pln(scenarios['optimistic_7pct'][1])} PLN/yr income"
+        ),
+        "ike_limit_growth_scenario": (
+            f"{_pln(portfolio_ike_growth)} PLN portfolio → "
+            f"{_pln(annual_income_ike_growth)} PLN/yr income "
+            f"(if IKE limit grows {ike_limit_growth*100:.0f}%/yr)"
+        ),
+    }
+
+    if ikze_delay_cost is not None:
+        result["ikze_delay_cost"] = (
+            f"Opening IKZE {ikze_delay_years} years later costs "
+            f"{_pln(ikze_delay_cost)} PLN in terminal portfolio value "
+            f"(real, {_pln(ikze_annual)} PLN/yr contribution)"
+        )
+
+    result["assumptions"] = (
+        f"{real_return*100:.0f}% real return, {inflation*100:.1f}% inflation, "
+        f"{withdrawal_rate*100:.0f}% withdrawal rate, "
+        f"{_pln(annual_contribution)} PLN/yr contribution — restate to override"
+    )
+
+    return result

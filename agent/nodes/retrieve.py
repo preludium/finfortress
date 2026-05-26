@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import pickle
 import sys
 from pathlib import Path
 from typing import Callable
@@ -14,6 +15,8 @@ ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT))
 from agent.state import AgentState
 from ingest.utils.embeddings import E5Embeddings
+
+BM25_CACHE_PATH = ROOT / "data" / "bm25_cache.pkl"
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +36,28 @@ def _build_bm25_index(
     client: QdrantClient,
     collection: str,
 ) -> tuple[BM25Okapi | None, list[str], dict[str, Document]]:
-    """Scroll all Qdrant payloads, build BM25 corpus. Returns (bm25, id_list, id_to_doc)."""
+    """Scroll all Qdrant payloads, build BM25 corpus. Caches to disk — only rebuilds when
+    the collection point count changes (i.e. after ingestion)."""
+
+    current_count: int = client.get_collection(collection).points_count
+
+    # Try loading from disk cache
+    if BM25_CACHE_PATH.exists():
+        try:
+            with BM25_CACHE_PATH.open("rb") as f:
+                cached = pickle.load(f)
+            if cached.get("points_count") == current_count:
+                log.info(
+                    "BM25 index loaded from cache: %d documents", len(cached["ids"])
+                )
+                return cached["bm25"], cached["ids"], cached["id_to_doc"]
+            log.info(
+                "BM25 cache stale (%d → %d points) — rebuilding",
+                cached.get("points_count"), current_count,
+            )
+        except Exception as exc:
+            log.warning("BM25 cache load failed: %s — rebuilding", exc)
+
     log.info("Building BM25 index from Qdrant collection '%s'…", collection)
 
     texts: list[str] = []
@@ -71,6 +95,20 @@ def _build_bm25_index(
     tokenized = [t.lower().split() for t in texts]
     bm25 = BM25Okapi(tokenized)
     log.info("BM25 index built: %d documents", len(texts))
+
+    # Persist to disk
+    try:
+        BM25_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with BM25_CACHE_PATH.open("wb") as f:
+            pickle.dump(
+                {"points_count": current_count, "bm25": bm25, "ids": ids, "id_to_doc": id_to_doc},
+                f,
+                protocol=pickle.HIGHEST_PROTOCOL,
+            )
+        log.info("BM25 index cached → %s", BM25_CACHE_PATH)
+    except Exception as exc:
+        log.warning("BM25 cache save failed: %s", exc)
+
     return bm25, ids, id_to_doc
 
 
