@@ -141,7 +141,15 @@ if question := st.chat_input("Ask a question about Polish personal finance…"):
         if disclaimer:
             st.warning(disclaimer)
 
-        meta_parts = [f"Confidence: {_confidence_badge(confidence)}", f"Grade: {avg_grade:.2f}"]
+        calc_result = result.get("calc_result")
+        live_data   = result.get("live_data")
+        meta_parts  = [f"Confidence: {_confidence_badge(confidence)}"]
+        if calc_result:
+            meta_parts.append("Source: calculator")
+        elif live_data:
+            meta_parts.append("Source: live data")
+        else:
+            meta_parts.append(f"RAG grade: {avg_grade:.2f}")
         if rewrites:
             meta_parts.append(f"Query rewrites: {rewrites}")
         if give_up:

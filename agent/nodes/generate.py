@@ -94,7 +94,11 @@ def build_generate_node(profile_block: str = "") -> Callable[[AgentState], dict]
         history     = list(state.get("history") or [])
         calc_result = state.get("calc_result")
         today       = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        confidence  = _confidence(avg_grade)
+        # Calculator and live data are deterministic — RAG grade is irrelevant for confidence
+        if calc_result or live_data:
+            confidence = "high"
+        else:
+            confidence = _confidence(avg_grade)
 
         disclaimer_block = (
             f"Disclaimer to include: {ADVICE_DISCLAIMER}"

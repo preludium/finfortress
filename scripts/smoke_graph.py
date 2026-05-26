@@ -35,8 +35,15 @@ def main() -> None:
 
     print("--- Answer ---")
     print(result["answer"])
+    calc_result = result.get("calc_result")
+    live_data   = result.get("live_data")
     print(f"\nConfidence:  {result['confidence']}")
-    print(f"Avg grade:   {result['avg_grade']:.2f}")
+    if calc_result:
+        print("Source:      calculator")
+    elif live_data:
+        print("Source:      live data")
+    else:
+        print(f"RAG grade:   {result['avg_grade']:.2f}")
     print(f"Query type:  {result['query_type']}")
     print(f"Rewrites:    {result['rewrite_count']}")
     print(f"Give up:     {result['give_up']}")
