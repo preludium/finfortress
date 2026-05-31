@@ -31,20 +31,21 @@ from agent.nodes.retrieve import build_retrieve_node
 COLLECTION = os.getenv("QDRANT_COLLECTION", "polish_finance")
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 
-TEST_QUESTIONS = [
-    "Jaki jest limit wpłat na IKE w 2025 roku?",
-    "Czym różni się WIRON od WIBOR?",
-    "Czy ETF w IKE płaci podatek Belki?",
-    "Jak działa kredyt hipoteczny w Polsce?",
-    "Co to są obligacje skarbowe COI?",
+TEST_QUESTIONS: list[tuple[str, str]] = [
+    ("Jaki jest limit wpłat na IKE w 2025 roku?", "factual"),
+    ("Czym różni się WIRON od WIBOR?", "factual"),
+    ("Czy ETF w IKE płaci podatek Belki?", "factual"),
+    ("Jak działa kredyt hipoteczny w Polsce?", "factual"),
+    ("Co to są obligacje skarbowe COI?", "factual"),
+    ("W co inwestować przy horyzoncie 30 lat i umiarkowanym ryzyku?", "advice"),
 ]
 
 
-def run(query: str, retrieve_fn) -> None:
+def run(query: str, retrieve_fn, query_type: str = "factual") -> None:
     state = {
         "question": query,
         "current_query": None,
-        "query_type": "factual",
+        "query_type": query_type,
         "needs_live_data": False,
         "context": [],
         "avg_grade": 0.0,
@@ -79,6 +80,9 @@ def run(query: str, retrieve_fn) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--query", help="Single custom query instead of test set")
+    parser.add_argument("--type", default="factual",
+                        choices=["factual", "calculation", "comparison", "advice"],
+                        help="query_type for --query (default: factual)")
     args = parser.parse_args()
 
     log.info("Connecting to Qdrant at %s", QDRANT_URL)
@@ -96,9 +100,11 @@ def main() -> None:
 
     retrieve = build_retrieve_node(client, COLLECTION, embedder)
 
-    questions = [args.query] if args.query else TEST_QUESTIONS
-    for q in questions:
-        run(q, retrieve)
+    if args.query:
+        run(args.query, retrieve, query_type=getattr(args, "type", "factual"))
+    else:
+        for q, qtype in TEST_QUESTIONS:
+            run(q, retrieve, query_type=qtype)
 
     print()
 

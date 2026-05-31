@@ -9,6 +9,7 @@ from typing import Callable
 import numpy as np
 from langchain_core.documents import Document
 from qdrant_client import QdrantClient
+from qdrant_client.models import FieldCondition, Filter, MatchAny
 from rank_bm25 import BM25Okapi
 
 ROOT = Path(__file__).parent.parent.parent
@@ -26,6 +27,26 @@ FINAL_TOP_K = 6
 RRF_K = 60
 DENSE_WEIGHT = 0.6
 BM25_WEIGHT = 0.4
+
+
+# Sources that contain blog/advice content (as stored in Qdrant payload["source"])
+_BLOG_SOURCES = {"inwestomat.eu", "marciniwuc.com"}
+
+
+def _source_filter(query_type: str) -> tuple[Filter | None, set[str] | None]:
+    """Return (qdrant_filter, allowed_sources) for the given query type.
+
+    Advice queries are scoped to blog sources — statute text (isap.sejm.gov.pl)
+    doesn't give personal finance advice and adds noise to recommendation answers.
+    All other types search the full corpus: factual/calculation/comparison answers
+    appear across blogs and legal sources alike.
+    """
+    if query_type == "advice":
+        return (
+            Filter(must=[FieldCondition(key="source", match=MatchAny(any=list(_BLOG_SOURCES)))]),
+            _BLOG_SOURCES,
+        )
+    return None, None
 
 
 # ---------------------------------------------------------------------------
@@ -145,17 +166,24 @@ def build_retrieve_node(
     bm25, corpus_ids, id_to_doc = _build_bm25_index(client, collection)
 
     def retrieve(state: AgentState) -> dict:
-        query = state.get("current_query") or state["question"]
-        log.info("Retrieve | query: %r", query[:80])
+        query      = state.get("current_query") or state["question"]
+        query_type = state.get("query_type", "factual")
+        qdrant_filter, allowed_sources = _source_filter(query_type)
+        log.info(
+            "Retrieve | query: %r  type=%s  filter=%s",
+            query[:80], query_type, "advice→blogs" if allowed_sources else "none",
+        )
 
         # --- Dense retrieval ---
+        # embed_query applies the required "query:" prefix for E5 — never call
+        # embedder.model.encode() directly, it would skip the prefix and degrade recall.
         query_vector = embedder.embed_query(query)
         dense_response = client.query_points(
             collection_name=collection,
             query=query_vector,
             limit=DENSE_TOP_K,
             with_payload=True,
-            # TODO: add query_filter once classify node is wired
+            query_filter=qdrant_filter,
         )
         dense_results = dense_response.points
         dense_ids = [str(r.id) for r in dense_results]
@@ -175,6 +203,13 @@ def build_retrieve_node(
         if bm25 is not None and corpus_ids:
             tokenized_query = query.lower().split()
             scores = bm25.get_scores(tokenized_query)
+            # Zero out excluded sources before argsort so the slice always
+            # draws from allowed sources — filtering after the slice would
+            # silently return fewer than BM25_TOP_K candidates.
+            if allowed_sources is not None:
+                for i, cid in enumerate(corpus_ids):
+                    if id_to_doc.get(cid, Document(page_content="", metadata={})).metadata.get("source") not in allowed_sources:
+                        scores[i] = 0.0
             top_indices = np.argsort(scores)[::-1][:BM25_TOP_K]
             bm25_ids = [corpus_ids[i] for i in top_indices if scores[i] > 0]
             log.info("  BM25 hits: %d", len(bm25_ids))
