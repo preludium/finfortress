@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
-import re
 import sys
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -14,6 +12,7 @@ from typing import Awaitable, Callable
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel
 
 ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT))
@@ -31,6 +30,12 @@ OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
 OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or None
 
 
+class GradeResult(BaseModel):
+    score: float = 0.0
+    temporal_mismatch: bool = False
+    reason: str = ""
+
+
 @lru_cache(maxsize=1)
 def _get_llm() -> ChatOpenAI:
     kwargs = dict(model=GRADER_MODEL, temperature=0, api_key=OPENAI_API_KEY)
@@ -39,22 +44,7 @@ def _get_llm() -> ChatOpenAI:
     return ChatOpenAI(**kwargs)
 
 
-def _parse_grade(raw: str) -> dict:
-    """Strip markdown fences and parse JSON. Returns default on failure."""
-    cleaned = re.sub(r"```json?\n?|```", "", raw).strip()
-    try:
-        result = json.loads(cleaned)
-        return {
-            "score": float(result.get("score", 0.0)),
-            "temporal_mismatch": bool(result.get("temporal_mismatch", False)),
-            "reason": str(result.get("reason", "")),
-        }
-    except (json.JSONDecodeError, ValueError) as exc:
-        log.warning("Grade parse error: %s | raw: %r", exc, raw[:120])
-        return {"score": 0.0, "temporal_mismatch": False, "reason": "parse error"}
-
-
-async def _grade_chunk_async(llm: ChatOpenAI, question: str, chunk, today: str) -> dict:
+async def _grade_chunk_async(llm: ChatOpenAI, question: str, chunk, today: str) -> GradeResult:
     date   = chunk.metadata.get("date", "unknown")
     source = chunk.metadata.get("source", "unknown")
     system = GRADE_SYSTEM.format(stale_months=STALE_MONTHS, today=today)
@@ -64,8 +54,9 @@ async def _grade_chunk_async(llm: ChatOpenAI, question: str, chunk, today: str) 
         source=source,
         chunk_text=chunk.page_content[:1000],
     )
-    raw = (await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=user)])).content
-    return _parse_grade(raw)
+    return await llm.with_structured_output(
+        GradeResult, method="json_mode"
+    ).ainvoke([SystemMessage(content=system), HumanMessage(content=user)])
 
 
 def build_grade_node() -> Callable[[AgentState], Awaitable[dict]]:
@@ -83,12 +74,12 @@ def build_grade_node() -> Callable[[AgentState], Awaitable[dict]]:
         # All chunks graded in parallel — 6× faster than sequential LLM calls.
         # Each coroutine gets the same shared ChatOpenAI instance (httpx pool is
         # concurrency-safe), so no lock or per-chunk client needed.
-        async def _safe_grade(i: int, chunk) -> dict:
+        async def _safe_grade(i: int, chunk) -> GradeResult:
             try:
                 return await _grade_chunk_async(llm, question, chunk, today)
             except Exception as exc:
-                log.warning("Grade chunk [%d] failed: %s — defaulting score=0.0", i + 1, exc)
-                return {"score": 0.0, "temporal_mismatch": False, "reason": "error"}
+                log.error("Grade chunk [%d] failed: %s — defaulting score=0.0", i + 1, exc)
+                return GradeResult(score=0.0, temporal_mismatch=False, reason="error")
 
         results = await asyncio.gather(*[
             _safe_grade(i, chunk) for i, chunk in enumerate(context)
@@ -99,14 +90,12 @@ def build_grade_node() -> Callable[[AgentState], Awaitable[dict]]:
 
         # Log in original order (gather preserves input order)
         for i, result in enumerate(results):
-            score    = result["score"]
-            mismatch = result["temporal_mismatch"]
-            scores.append(score)
-            if mismatch:
+            scores.append(result.score)
+            if result.temporal_mismatch:
                 stale = True
             log.info(
                 "  chunk [%d/%d] score=%.2f temporal_mismatch=%s | %s",
-                i + 1, len(context), score, mismatch, result["reason"][:80],
+                i + 1, len(context), result.score, result.temporal_mismatch, result.reason[:80],
             )
 
         avg = sum(scores) / len(scores)
@@ -121,8 +110,8 @@ def build_grade_node() -> Callable[[AgentState], Awaitable[dict]]:
         )
 
         return {
-            "avg_grade":    avg,
-            "stale_data":   stale,
+            "avg_grade":     avg,
+            "stale_data":    stale,
             "needs_rewrite": needs_rewrite,
         }
 

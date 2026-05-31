@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
-import re
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -11,6 +9,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel
 
 ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT))
@@ -20,6 +19,11 @@ from typing import Callable
 
 from agent.state import AgentState
 from agent.prompts.calculate import CALCULATE_SYSTEM, CALCULATE_USER
+
+
+class CalculateRequest(BaseModel):
+    formula: str = "none"
+    params: dict = {}
 
 log = logging.getLogger(__name__)
 
@@ -60,21 +64,21 @@ def build_calculate_node(profile_block: str = "") -> Callable[[AgentState], dict
 
         try:
             llm = _get_llm()
-            raw = llm.invoke([
+            parsed: CalculateRequest = llm.with_structured_output(
+                CalculateRequest, method="json_mode"
+            ).invoke([
                 SystemMessage(content=CALCULATE_SYSTEM),
                 HumanMessage(content=CALCULATE_USER.format(
                     question=question,
                     profile_block=profile_block,
                 )),
-            ]).content
-            cleaned = re.sub(r"```json?\n?|```", "", raw).strip()
-            parsed  = json.loads(cleaned)
+            ])
         except Exception as exc:
-            log.warning("Calculate LLM/parse error: %s — skipping calculator", exc)
+            log.error("Calculate structured output failed: %s — skipping calculator", exc)
             return {"calc_result": None}
 
-        formula = parsed.get("formula", "none")
-        params  = parsed.get("params", {})
+        formula = parsed.formula
+        params  = parsed.params
         log.info("Calculate: formula=%s params=%s", formula, params)
 
         if formula == "none":

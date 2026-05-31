@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
-import re
 import sys
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel
 
 ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT))
@@ -26,6 +26,11 @@ OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
 OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or None
 
 
+class ClassifyResult(BaseModel):
+    query_type: Literal["factual", "calculation", "comparison", "advice"] = "factual"
+    needs_live_data: bool = False
+
+
 @lru_cache(maxsize=1)
 def _get_llm() -> ChatOpenAI:
     kwargs = dict(model=GRADER_MODEL, temperature=0, api_key=OPENAI_API_KEY)
@@ -35,19 +40,22 @@ def _get_llm() -> ChatOpenAI:
 
 
 def classify(state: AgentState) -> dict:
-    llm = _get_llm()
+    llm      = _get_llm()
     question = state["question"]
-    raw = llm.invoke([
-        SystemMessage(content=CLASSIFY_SYSTEM),
-        HumanMessage(content=CLASSIFY_USER.format(question=question)),
-    ]).content
-    cleaned = re.sub(r"```json?\n?|```", "", raw).strip()
     try:
-        result = json.loads(cleaned)
-        query_type = result.get("query_type", "factual")
-        needs_live = bool(result.get("needs_live_data", False))
-    except (json.JSONDecodeError, ValueError):
-        log.warning("Classify parse error — defaulting to factual. raw: %r", raw[:100])
+        result: ClassifyResult = llm.with_structured_output(
+            ClassifyResult, method="json_mode"
+        ).invoke([
+            SystemMessage(content=CLASSIFY_SYSTEM),
+            HumanMessage(content=CLASSIFY_USER.format(question=question)),
+        ])
+        query_type = result.query_type
+        needs_live = result.needs_live_data
+    except Exception as exc:
+        # Visible error — not silent. Fallback keeps the graph alive but
+        # "factual, no live data" is wrong for most questions, so log at ERROR
+        # so LangSmith and local logs both surface this.
+        log.error("Classify structured output failed: %s — defaulting to factual", exc)
         query_type = "factual"
         needs_live = False
 
