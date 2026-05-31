@@ -52,6 +52,8 @@ Both options use the same Qdrant and embedding configuration. Embeddings always 
 
 All other settings (`GRADE_THRESHOLD`, `MAX_REWRITES`, `QDRANT_URL`, etc.) are pre-filled with reasonable defaults. See [`docs/configuration.md`](configuration.md) for the full reference.
 
+**Optional: LangSmith tracing.** Set `LANGCHAIN_TRACING_V2=true` and add a `LANGCHAIN_API_KEY` to stream traces to [LangSmith](https://smith.langchain.com). LangGraph traces every node execution, LLM call, and retrieved chunk with zero code changes — useful for debugging grading decisions and rewrite behaviour.
+
 ---
 
 ## Set up your personal profile
