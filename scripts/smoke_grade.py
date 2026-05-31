@@ -1,5 +1,6 @@
 """Quick smoke test for the grade node — verifies oMLX returns valid JSON scores."""
 
+import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -33,7 +34,7 @@ state = {
     "give_up": False,
 }
 
-result = grade(state)
+result = asyncio.run(grade(state))
 print("\n--- Grade result ---")
 print(f"avg_grade:     {result['avg_grade']:.2f}")
 print(f"needs_rewrite: {result['needs_rewrite']}")

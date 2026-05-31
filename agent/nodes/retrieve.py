@@ -32,6 +32,7 @@ BM25_WEIGHT = 0.4
 # BM25 index — built once from Qdrant at startup
 # ---------------------------------------------------------------------------
 
+
 def _build_bm25_index(
     client: QdrantClient,
     collection: str,
@@ -47,13 +48,12 @@ def _build_bm25_index(
             with BM25_CACHE_PATH.open("rb") as f:
                 cached = pickle.load(f)
             if cached.get("points_count") == current_count:
-                log.info(
-                    "BM25 index loaded from cache: %d documents", len(cached["ids"])
-                )
+                log.info("BM25 index loaded from cache: %d documents", len(cached["ids"]))
                 return cached["bm25"], cached["ids"], cached["id_to_doc"]
             log.info(
                 "BM25 cache stale (%d → %d points) — rebuilding",
-                cached.get("points_count"), current_count,
+                cached.get("points_count"),
+                current_count,
             )
         except Exception as exc:
             log.warning("BM25 cache load failed: %s — rebuilding", exc)
@@ -116,6 +116,7 @@ def _build_bm25_index(
 # Reciprocal Rank Fusion
 # ---------------------------------------------------------------------------
 
+
 def _weighted_rrf(
     dense_ids: list[str],
     bm25_ids: list[str],
@@ -132,6 +133,7 @@ def _weighted_rrf(
 # ---------------------------------------------------------------------------
 # Node factory
 # ---------------------------------------------------------------------------
+
 
 def build_retrieve_node(
     client: QdrantClient,

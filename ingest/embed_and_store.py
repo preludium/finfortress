@@ -31,7 +31,7 @@ from tqdm import tqdm
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 from ingest.utils.chunker import chunk_documents
-from ingest.utils.embeddings import E5Embeddings, EMBED_DIM
+from ingest.utils.embeddings import EMBED_DIM, E5Embeddings
 from ingest.utils.hasher import chunk_hash
 
 load_dotenv(ROOT / ".env")
@@ -54,6 +54,7 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY") or None
 # ---------------------------------------------------------------------------
 # Qdrant helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_client() -> QdrantClient:
     kwargs = {"url": QDRANT_URL}
@@ -97,6 +98,7 @@ def _load_existing_hashes(client: QdrantClient, collection: str) -> set[str]:
 # Raw JSONL → LangChain Documents
 # ---------------------------------------------------------------------------
 
+
 def _records_to_documents(records: list[dict]) -> list[Document]:
     docs = []
     for rec in records:
@@ -108,6 +110,7 @@ def _records_to_documents(records: list[dict]) -> list[Document]:
 # ---------------------------------------------------------------------------
 # Core embed + store
 # ---------------------------------------------------------------------------
+
 
 def embed_source(
     source_id: str,
@@ -152,7 +155,12 @@ def embed_source(
             new_chunks.append(chunk)
             new_hashes.append(h)
 
-    log.info("%s: %d new chunks (skipping %d duplicates)", source_id, len(new_chunks), len(chunks) - len(new_chunks))
+    log.info(
+        "%s: %d new chunks (skipping %d duplicates)",
+        source_id,
+        len(new_chunks),
+        len(chunks) - len(new_chunks),
+    )
 
     if dry_run or not new_chunks:
         return len(new_chunks)
@@ -181,10 +189,13 @@ def embed_source(
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Embed raw JSONL chunks into Qdrant.")
     parser.add_argument("--source", help="Process one source by id (e.g. inwestomat_blog)")
-    parser.add_argument("--dry-run", action="store_true", help="Count new chunks only, no embedding")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Count new chunks only, no embedding"
+    )
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE, help="Embedding batch size")
     args = parser.parse_args()
     batch_size = args.batch_size
@@ -220,7 +231,9 @@ def main() -> None:
 
     total = 0
     for sid in source_ids:
-        total += embed_source(sid, embedder, client, existing_hashes, dry_run=False, batch_size=batch_size)
+        total += embed_source(
+            sid, embedder, client, existing_hashes, dry_run=False, batch_size=batch_size
+        )
 
     log.info("Done. Total new chunks stored: %d", total)
 
