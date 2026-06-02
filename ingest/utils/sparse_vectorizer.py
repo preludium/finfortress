@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import re
 import zlib
 
+import simplemma
 from qdrant_client.models import SparseVector
 
 
@@ -11,7 +13,11 @@ def _token_id(token: str) -> int:
 
 
 def tokenize(text: str) -> list[str]:
-    return text.lower().split()
+    # Split on non-word chars so "WIBOR," → "wibor" (no trailing punct).
+    # Lemmatize each token so kredytu/kredytów/kredytem all → kredyt.
+    # Single-char tokens ("w", "i", "z") filtered — too short to carry signal.
+    tokens = re.findall(r"\w+", text.lower())
+    return [simplemma.lemmatize(t, lang="pl") for t in tokens if len(t) > 1]
 
 
 def text_to_sparse(text: str) -> SparseVector:

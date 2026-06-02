@@ -89,6 +89,11 @@ smoke: smoke-retrieval smoke-grade smoke-generate smoke-graph smoke-calculate
 backfill-sparse:
     {{ python }} scripts/backfill_sparse.py
 
+# Re-index sparse vectors after a tokenizer change (e.g. after adding lemmatization).
+# Skips the idempotency check — always rebuilds.
+reindex-sparse:
+    {{ python }} scripts/backfill_sparse.py --force
+
 # Test hybrid retrieval (Qdrant dense + sparse + RRF) — no LLM calls
 smoke-retrieval:
     {{ python }} scripts/smoke_retrieval.py

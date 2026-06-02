@@ -63,6 +63,7 @@ def _get_client() -> QdrantClient:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Backfill sparse vectors into Qdrant collection.")
     parser.add_argument("--dry-run", action="store_true", help="Print stats, no writes")
+    parser.add_argument("--force", action="store_true", help="Re-index even if collection already has sparse vectors (use after tokenizer changes)")
     args = parser.parse_args()
 
     client = _get_client()
@@ -72,8 +73,9 @@ def main() -> None:
         sys.exit(1)
 
     info = client.get_collection(QDRANT_COLLECTION)
-    if info.config.params.sparse_vectors:
+    if info.config.params.sparse_vectors and not args.force:
         log.info("Collection '%s' already has sparse vectors — nothing to do", QDRANT_COLLECTION)
+        log.info("Use --force to re-index with the current tokenizer (needed after tokenizer changes)")
         return
 
     total_points = info.points_count
@@ -92,7 +94,11 @@ def main() -> None:
         )
         for p in results:
             if p.vector is not None and p.payload:
-                records.append((p.id, p.vector, p.payload))
+                # When collection has named vectors (dense="" + sparse="bm25"),
+                # p.vector is a dict — extract just the dense vector.
+                dense = p.vector.get("") if isinstance(p.vector, dict) else p.vector
+                if dense is not None:
+                    records.append((p.id, dense, p.payload))
         if offset is None:
             break
 

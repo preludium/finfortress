@@ -50,7 +50,8 @@ fall back automatically. Log which fallback was used — useful for debugging.
 Default Whisper (base model) works for Polish but makes errors on financial
 terms: "WIBOR" becomes "Wibor" or "Vibor", "IKE" becomes "ike", "Belki"
 becomes "belki". These lowercase/mangled versions still embed reasonably well
-for semantic search but hurt BM25 keyword matching.
+for semantic search but hurt sparse keyword matching — simplemma lemmatizes
+correctly but can't fix a misspelled root.
 
 Fix: post-process transcripts with a Polish financial term glossary. Simple
 string replacement: `{"wibor": "WIBOR", "ike": "IKE", " belki": " Belki"}`.
@@ -185,6 +186,12 @@ just backfill-sparse   # scrolls all points, recreates collection, re-upserts wi
 ```
 
 Safe to re-run — exits immediately if the collection already has sparse vectors.
+
+**After a tokenizer change** (e.g. after upgrading lemmatization): existing sparse vectors use the old token IDs and must be recomputed. Use `--force` to bypass the idempotency check:
+
+```bash
+just reindex-sparse   # same as backfill-sparse --force — always rebuilds sparse vectors
+```
 
 ---
 
@@ -377,7 +384,7 @@ Good test questions for this project:
 | Qdrant data lost on restart | No volume mount | Always use `-v $(pwd)/qdrant_data:/qdrant/storage` |
 | Streamlit history reset | No `session_state` | Use `st.session_state.messages` |
 | SSE not streaming | Missing nginx header | Add `X-Accel-Buffering: no` |
-| Polish terms not matched in sparse | Tokenization: `.lower().split()` | Same whitespace tokenizer used at ingest and query — punctuation attached to word (`WIBOR,`) won't match (`WIBOR`). Strip punctuation if needed (tracked separately as issue #26) |
+| Polish inflected forms not matching | Whitespace tokenizer (old) | Fixed: `sparse_vectorizer.tokenize()` uses `simplemma` Polish lemmatization + regex split. After changing, run `just backfill-sparse` to re-index. |
 | Slow first embedding run | Model download | ~2.2GB download on first use, cached after |
 | Wrong cosine similarity | Wrong distance metric | Use `Distance.COSINE` not `Distance.DOT` |
 

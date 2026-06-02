@@ -43,6 +43,8 @@ dependencies = [
     "ragas>=0.1",
     # Observability
     "langsmith>=0.1",
+    # NLP — Polish lemmatization for sparse tokenizer
+    "simplemma>=1.1",
     # Utilities
     "python-dotenv>=1.0",
     "tqdm>=4.66",

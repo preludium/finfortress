@@ -104,7 +104,7 @@ Two retrievers run in parallel and results are merged with Reciprocal Rank Fusio
 `multilingual-e5-large` embeddings, cosine similarity, top-6. Qdrant's `Filter` is applied when classification suggests a specific source type (e.g. factual tax questions filter to `content_type: pdf_gov` to reduce blog-opinion noise).
 
 **Sparse retrieval (Qdrant native sparse vectors)**
-TF sparse vectors stored in Qdrant alongside the dense vectors, with `Modifier.IDF` applied server-side at query time. Each token is hashed to a stable 32-bit ID (`zlib.crc32`); per-document term frequencies are computed at ingest time and stored as `SparseVector`. At query time, a binary sparse query vector (weight 1.0 per unique token) is sent to Qdrant, which multiplies by server-side IDF weights and returns top-K by dot product.
+TF sparse vectors stored in Qdrant alongside the dense vectors, with `Modifier.IDF` applied server-side at query time. Text is tokenized via `simplemma` Polish lemmatization (`kredytu`/`kredytów`/`kredytem` → `kredyt`) with `re.findall(r"\w+", ...)` splitting (handles `WIBOR,` → `wibor`). Each lemma is hashed to a stable 32-bit ID (`zlib.crc32`); per-document term frequencies are computed at ingest time and stored as `SparseVector`. At query time, a binary sparse query vector (weight 1.0 per unique lemma) is sent to Qdrant, which multiplies by server-side IDF weights and returns top-K by dot product.
 
 This replaces the previous `rank-bm25` in-memory index that required scrolling all chunk texts at startup (~114 MB pickle for 72k chunks). The sparse index lives entirely in Qdrant — startup is a single metadata request, not a full corpus scan.
 

@@ -54,7 +54,7 @@ finfortress/
 │       ├── cleaner.py         # HTML article body extractor
 │       ├── embeddings.py      # E5Embeddings with query:/passage: prefixes
 │       ├── hasher.py          # SHA-256 dedup hash
-│       └── sparse_vectorizer.py # TF sparse vectors for Qdrant (zlib.crc32 token IDs)
+│       └── sparse_vectorizer.py # TF sparse vectors for Qdrant (simplemma lemmatization + zlib.crc32 token IDs)
 │
 ├── api/
 │   ├── main.py                # FastAPI + CORS + startup (loads graph)
@@ -122,6 +122,7 @@ just sources              # indexed domains summary
 just check-url <url>      # is this URL already indexed?
 just scrape-url <url>     # preview article scrape without ingesting
 just backfill-sparse      # one-time: migrate existing collection to add native sparse vectors
+just reindex-sparse       # re-index sparse after tokenizer changes (runs backfill with --force)
 just graph                # generate + open agent graph diagram
 ```
 
@@ -139,11 +140,12 @@ Gitignored. Streamlit sidebar shows profile summary.
 ## Knowledge base (current state)
 
 ```
-inwestomat.eu      334 docs   26,478 chunks   (ETF, IKE/IKZE, Belka, pasywne)
-marciniwuc.com     776 docs   35,180 chunks   (kredyty, planowanie, ubezpieczenia)
+inwestomat.eu      334 docs   26,579 chunks   (ETF, IKE/IKZE, Belka, pasywne)
+marciniwuc.com     776 docs   35,263 chunks   (kredyty, planowanie, ubezpieczenia)
 isap.sejm.gov.pl     2 docs    1,350 chunks   (ustawa PIT, ustawa IKE/IKZE)
+www.infakt.pl       ~5,922 chunks             (JDG, podatki, faktury)
 ─────────────────────────────────────────────
-TOTAL             1112 docs   63,008 chunks
+TOTAL             ~71,939 chunks (lemmatized sparse vectors, 2026-06)
 ```
 
 Missing: podatki.gov.pl, KNF, obligacjeskarbowe.pl, NBP reports, UOKiK, BGK.
@@ -151,7 +153,7 @@ Missing: podatki.gov.pl, KNF, obligacjeskarbowe.pl, NBP reports, UOKiK, BGK.
 ## Key design decisions
 
 - **multilingual-e5-large**: ada-002 degrades Polish financial vocab. e5-large: local, free, understands Polish. MUST add `query:`/`passage:` prefixes — E5Embeddings wrapper handles this.
-- **Hybrid retrieval (dense + sparse, RRF)**: dense finds synonyms, sparse (Qdrant native, Modifier.IDF) finds exact codes (COI0325, WIRON 3M). RRF merges, no score calibration. Sparse 40%, dense 60%. Tokens hashed via `zlib.crc32` — no vocab file needed. `just backfill-sparse` for existing collections.
+- **Hybrid retrieval (dense + sparse, RRF)**: dense finds synonyms, sparse (Qdrant native, Modifier.IDF) finds exact codes (COI0325, WIRON 3M). RRF merges, no score calibration. Sparse 40%, dense 60%. Text tokenized with `simplemma` Polish lemmatization (`kredytu`→`kredyt`) + regex split for punctuation stripping (`WIBOR,`→`wibor`); tokens hashed via `zlib.crc32` — no vocab file needed. After tokenizer changes: `just reindex-sparse`.
 - **Grading threshold 0.6**: below → chunks insufficient → rewrite.
 - **Max 2 rewrites**: prevents infinite loops. After 2 fails: avg_grade ≥ threshold → low-confidence; else → fallback.
 - **Grader = small model**: grader fires 6× per query. 32B = 5-10× costlier. 7B sufficient for binary relevance.
@@ -200,5 +202,6 @@ class AgentState(TypedDict):
 | #15 | feat(calculator): cash allocation comparison tool | **in progress** |
 | #16 | feat(calculator): rental yield vs sell (BK2% apartment) | Low — multi-year planning |
 | #18 | chore: add sources (kredyt budowlany, najem, bond rolling) | Medium |
+| #31 | feat(tools): Polish inflation tool (Eurostat HICP API) | Medium — monthly CPI trend |
 
 Repo: https://github.com/preludium/finfortress
