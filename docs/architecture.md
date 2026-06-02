@@ -103,8 +103,10 @@ Two retrievers run in parallel and results are merged with Reciprocal Rank Fusio
 **Dense retrieval (Qdrant)**
 `multilingual-e5-large` embeddings, cosine similarity, top-6. Qdrant's `Filter` is applied when classification suggests a specific source type (e.g. factual tax questions filter to `content_type: pdf_gov` to reduce blog-opinion noise).
 
-**Sparse retrieval (BM25)**
-`rank-bm25` over the same corpus. The BM25 index is built in memory from the raw chunk texts at startup. This is fast enough for the expected corpus size (~20k chunks). For larger corpora, consider Qdrant's built-in sparse vectors.
+**Sparse retrieval (Qdrant native sparse vectors)**
+TF sparse vectors stored in Qdrant alongside the dense vectors, with `Modifier.IDF` applied server-side at query time. Each token is hashed to a stable 32-bit ID (`zlib.crc32`); per-document term frequencies are computed at ingest time and stored as `SparseVector`. At query time, a binary sparse query vector (weight 1.0 per unique token) is sent to Qdrant, which multiplies by server-side IDF weights and returns top-K by dot product.
+
+This replaces the previous `rank-bm25` in-memory index that required scrolling all chunk texts at startup (~114 MB pickle for 72k chunks). The sparse index lives entirely in Qdrant — startup is a single metadata request, not a full corpus scan.
 
 **Why hybrid**: Dense retrieval finds semantically similar chunks even when keywords differ ("konto emerytalne" matches "IKE"). BM25 finds exact term matches ("WIRON 3M 2025-01") that dense search can miss when the term is rare in training data. RRF consistently outperforms either retriever alone on financial Q&A.
 
@@ -152,7 +154,7 @@ Output is a structured Pydantic model, not free text, so the API can render cita
 
 ### Conversation memory
 
-The graph is compiled with a `SqliteSaver` checkpointer (`data/memory.sqlite`). Each invocation is identified by a `thread_id`; LangGraph saves the full `AgentState` after every node execution.
+The graph is compiled with an `AsyncSqliteSaver` checkpointer (`data/memory.sqlite`). The async variant is required because the `grade` node is an `async def` function — LangGraph must call `ainvoke` throughout, which in turn requires an async-capable checkpointer. Each invocation is identified by a `thread_id`; LangGraph saves the full `AgentState` after every node execution.
 
 On subsequent messages in the same thread, the checkpointer restores the saved state. The `history` field in `AgentState` accumulates `{"question": ..., "answer": ...}` pairs — up to 10 turns stored, last 5 injected into the generation prompt as a history block.
 

@@ -319,7 +319,7 @@ Opens at `http://localhost:8501`.
 
 On first run, `multilingual-e5-large` (~2.2 GB) downloads to `~/.cache/huggingface/`. This is a one-time download — subsequent starts load from cache and are fast.
 
-The agent graph (e5-large + BM25 index) is built once at startup and cached across Streamlit reruns via `@st.cache_resource`.
+The agent graph (e5-large + Qdrant sparse index) is built once at startup and cached across Streamlit reruns via `@st.cache_resource`.
 
 ---
 

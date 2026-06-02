@@ -35,7 +35,7 @@ finfortress/
 │   ├── nodes/
 │   │   ├── classify.py        # sets query_type + needs_live_data
 │   │   ├── fetch_live.py      # calls NBP / obligacje tools if needed
-│   │   ├── retrieve.py        # hybrid dense+BM25 retrieval, RRF fusion
+│   │   ├── retrieve.py        # hybrid dense+sparse retrieval, RRF fusion
 │   │   ├── grade.py           # per-chunk relevance scoring + stale detection
 │   │   ├── rewrite.py         # rewrites query on grade failure
 │   │   ├── generate.py        # build_generate_node(profile_block="")
@@ -53,10 +53,11 @@ finfortress/
 │       ├── chunker.py         # RecursiveCharacterTextSplitter wrapper
 │       ├── cleaner.py         # HTML article body extractor
 │       ├── embeddings.py      # E5Embeddings with query:/passage: prefixes
-│       └── hasher.py          # SHA-256 dedup hash
+│       ├── hasher.py          # SHA-256 dedup hash
+│       └── sparse_vectorizer.py # TF sparse vectors for Qdrant (zlib.crc32 token IDs)
 │
 ├── api/
-│   ├── main.py                # FastAPI + CORS + startup (loads graph + BM25)
+│   ├── main.py                # FastAPI + CORS + startup (loads graph)
 │   ├── schemas.py             # QueryRequest, QueryResponse
 │   └── routes/
 │       ├── query.py           # POST /query (sync) + POST /query/stream (SSE)
@@ -68,6 +69,7 @@ finfortress/
 │
 ├── scripts/
 │   ├── ingest_my_sources.py   # ingest data/my_sources/ (PDFs, URLs, blogs)
+│   ├── backfill_sparse.py     # one-time migration: add sparse vectors to existing collection
 │   ├── smoke_retrieval.py     # test hybrid retrieval, no LLM calls
 │   ├── smoke_grade.py         # test grader JSON output
 │   ├── smoke_generate.py      # test generator structured output
@@ -119,6 +121,7 @@ just status               # chunk counts per source
 just sources              # indexed domains summary
 just check-url <url>      # is this URL already indexed?
 just scrape-url <url>     # preview article scrape without ingesting
+just backfill-sparse      # one-time: migrate existing collection to add native sparse vectors
 just graph                # generate + open agent graph diagram
 ```
 
@@ -148,7 +151,7 @@ Missing: podatki.gov.pl, KNF, obligacjeskarbowe.pl, NBP reports, UOKiK, BGK.
 ## Key design decisions
 
 - **multilingual-e5-large**: ada-002 degrades Polish financial vocab. e5-large: local, free, understands Polish. MUST add `query:`/`passage:` prefixes — E5Embeddings wrapper handles this.
-- **Hybrid retrieval (dense + BM25, RRF)**: dense finds synonyms, BM25 finds exact codes (COI0325, WIRON 3M). RRF merges, no score calibration. BM25 40%, dense 60%.
+- **Hybrid retrieval (dense + sparse, RRF)**: dense finds synonyms, sparse (Qdrant native, Modifier.IDF) finds exact codes (COI0325, WIRON 3M). RRF merges, no score calibration. Sparse 40%, dense 60%. Tokens hashed via `zlib.crc32` — no vocab file needed. `just backfill-sparse` for existing collections.
 - **Grading threshold 0.6**: below → chunks insufficient → rewrite.
 - **Max 2 rewrites**: prevents infinite loops. After 2 fails: avg_grade ≥ threshold → low-confidence; else → fallback.
 - **Grader = small model**: grader fires 6× per query. 32B = 5-10× costlier. 7B sufficient for binary relevance.

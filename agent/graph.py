@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
-import sqlite3
 import sys
 import warnings
 from pathlib import Path
 
 warnings.filterwarnings("ignore", message="Api key is used with an insecure connection")
 
+import aiosqlite
 from dotenv import load_dotenv
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
 from qdrant_client import QdrantClient
 
@@ -68,7 +69,7 @@ def _route_after_grade(state: AgentState) -> str:
 # Graph builder
 # ---------------------------------------------------------------------------
 
-def build_graph(qdrant_client: QdrantClient | None = None, embedder: E5Embeddings | None = None):
+async def build_graph(qdrant_client: QdrantClient | None = None, embedder: E5Embeddings | None = None):
     """Build and compile the agent graph. Accepts optional pre-built dependencies for testing."""
 
     if qdrant_client is None:
@@ -118,8 +119,8 @@ def build_graph(qdrant_client: QdrantClient | None = None, embedder: E5Embedding
     graph.add_edge("generate",  END)
     graph.add_edge("fallback",  END)
 
-    conn = sqlite3.connect(str(MEMORY_DB), check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
+    conn = await aiosqlite.connect(str(MEMORY_DB))
+    checkpointer = AsyncSqliteSaver(conn)
     return graph.compile(checkpointer=checkpointer)
 
 
@@ -129,9 +130,11 @@ def build_graph(qdrant_client: QdrantClient | None = None, embedder: E5Embedding
 
 def ask(question: str, app=None, config: dict | None = None) -> dict:
     """Run a question through the compiled graph. Builds graph if not provided."""
-    if app is None:
-        app = build_graph()
-    if config is None:
-        config = {"configurable": {"thread_id": "default"}}
-    state = {**INITIAL_STATE, "question": question}
-    return app.invoke(state, config)
+    async def _run():
+        nonlocal app
+        if app is None:
+            app = await build_graph()
+        cfg = config or {"configurable": {"thread_id": "default"}}
+        state = {**INITIAL_STATE, "question": question}
+        return await app.ainvoke(state, cfg)
+    return asyncio.run(_run())

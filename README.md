@@ -29,7 +29,7 @@ Question
    │
    ▼
 ┌──────────┐
-│ Retrieve │  → dense (e5-large / Qdrant) + sparse (BM25), merged with RRF
+│ Retrieve │  → dense (e5-large / Qdrant) + sparse (Qdrant native), merged with RRF
 └──────────┘    returns top-6 chunks
    │
    ▼
@@ -63,7 +63,7 @@ The graph is implemented with LangGraph. See [`docs/architecture.md`](docs/archi
 | Grader LLM | `Qwen2.5-7B-Instruct-4bit` via oMLX | OpenAI GPT-4o-mini |
 | Embeddings | `intfloat/multilingual-e5-large` (local) | — |
 | Vector store | Qdrant (Docker) | Qdrant Cloud |
-| Keyword search | BM25 (rank-bm25, in-memory) | — |
+| Keyword search | Qdrant native sparse vectors (Modifier.IDF) | — |
 | Retrieval fusion | Reciprocal Rank Fusion | — |
 | Agent orchestration | LangGraph | — |
 | API | FastAPI + SSE streaming | — |

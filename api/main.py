@@ -46,7 +46,7 @@ app.include_router(query_router)
 
 @app.on_event("startup")
 async def startup():
-    log.info("Building agent graph (loads e5-large + BM25 index)…")
+    log.info("Building agent graph (loads e5-large, connects to Qdrant)…")
     from agent.graph import build_graph
-    app.state.agent = build_graph()
+    app.state.agent = await build_graph()
     log.info("Agent ready.")

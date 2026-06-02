@@ -25,7 +25,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from langchain_core.documents import Document
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+from qdrant_client.models import Distance, Modifier, PointStruct, SparseVectorParams, VectorParams
 from tqdm import tqdm
 
 ROOT = Path(__file__).parent.parent
@@ -33,6 +33,7 @@ sys.path.insert(0, str(ROOT))
 from ingest.utils.chunker import chunk_documents
 from ingest.utils.embeddings import EMBED_DIM, E5Embeddings
 from ingest.utils.hasher import chunk_hash
+from ingest.utils.sparse_vectorizer import text_to_sparse
 
 load_dotenv(ROOT / ".env")
 
@@ -68,9 +69,16 @@ def _ensure_collection(client: QdrantClient, name: str) -> None:
         client.create_collection(
             collection_name=name,
             vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE),
+            sparse_vectors_config={"bm25": SparseVectorParams(modifier=Modifier.IDF)},
         )
-        log.info("Created Qdrant collection '%s'", name)
+        log.info("Created Qdrant collection '%s' (dense + sparse)", name)
     else:
+        info = client.get_collection(name)
+        if not info.config.params.sparse_vectors:
+            log.warning(
+                "Collection '%s' has no sparse vectors — run `just backfill-sparse` to migrate",
+                name,
+            )
         log.info("Collection '%s' already exists", name)
 
 
@@ -120,6 +128,7 @@ def embed_source(
     dry_run: bool = False,
     batch_size: int = BATCH_SIZE,
     collection: str = QDRANT_COLLECTION,
+    has_sparse: bool = True,
 ) -> int:
     """Embed one source's raw JSONL. Returns count of newly stored chunks."""
     raw_path = RAW_DIR / f"{source_id}.jsonl"
@@ -173,7 +182,11 @@ def embed_source(
     points: list[PointStruct] = []
     for chunk, vector, h in zip(new_chunks, vectors, new_hashes):
         payload = {**chunk.metadata, "page_content": chunk.page_content, "content_hash": h}
-        points.append(PointStruct(id=str(uuid.uuid4()), vector=vector.tolist(), payload=payload))
+        if has_sparse:
+            vec = {"": vector.tolist(), "bm25": text_to_sparse(chunk.page_content)}
+        else:
+            vec = vector.tolist()
+        points.append(PointStruct(id=str(uuid.uuid4()), vector=vec, payload=payload))
 
     # Upsert in batches
     for i in tqdm(range(0, len(points), batch_size), desc=f"Upserting {source_id}", unit="batch"):
@@ -225,6 +238,9 @@ def main() -> None:
     client = _get_client()
     _ensure_collection(client, QDRANT_COLLECTION)
 
+    coll_info = client.get_collection(QDRANT_COLLECTION)
+    has_sparse = bool(coll_info.config.params.sparse_vectors)
+
     log.info("Loading existing hashes from Qdrant…")
     existing_hashes = _load_existing_hashes(client, QDRANT_COLLECTION)
     log.info("Found %d existing chunks in collection", len(existing_hashes))
@@ -232,7 +248,8 @@ def main() -> None:
     total = 0
     for sid in source_ids:
         total += embed_source(
-            sid, embedder, client, existing_hashes, dry_run=False, batch_size=batch_size
+            sid, embedder, client, existing_hashes, dry_run=False, batch_size=batch_size,
+            has_sparse=has_sparse,
         )
 
     log.info("Done. Total new chunks stored: %d", total)

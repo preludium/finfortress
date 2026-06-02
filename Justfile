@@ -84,7 +84,12 @@ list-sources:
 # Run all smoke tests in sequence
 smoke: smoke-retrieval smoke-grade smoke-generate smoke-graph smoke-calculate
 
-# Test hybrid retrieval (Qdrant dense + BM25 + RRF) — no LLM calls
+# Migrate existing Qdrant collection to add native sparse (bm25) vectors.
+# Run once after upgrading from the in-memory BM25 implementation.
+backfill-sparse:
+    {{ python }} scripts/backfill_sparse.py
+
+# Test hybrid retrieval (Qdrant dense + sparse + RRF) — no LLM calls
 smoke-retrieval:
     {{ python }} scripts/smoke_retrieval.py
 

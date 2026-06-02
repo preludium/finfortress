@@ -1,6 +1,6 @@
 """
 Quick retrieval smoke test — runs 5 Polish finance questions and prints top chunks.
-No LLM calls, no grading. Verifies Qdrant + BM25 + RRF are working.
+No LLM calls, no grading. Verifies Qdrant dense + sparse + RRF are working.
 
 Usage:
     python scripts/smoke_retrieval.py

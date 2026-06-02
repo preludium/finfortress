@@ -138,40 +138,53 @@ docker run -d -p 6333:6333 \
 If you forget the volume flag during development and run the embedder, you lose
 everything and must re-embed. Add this to your startup checklist.
 
-### Create the collection explicitly with the right distance metric
+### Create the collection explicitly with the right distance metric and sparse config
 
 Don't let LangChain create the collection implicitly — it uses defaults that
 may not match. Create it explicitly:
 
 ```python
-from qdrant_client.models import Distance, VectorParams
+from qdrant_client.models import Distance, VectorParams, SparseVectorParams, Modifier
 
-client.recreate_collection(
+client.create_collection(
     collection_name="polish_finance",
     vectors_config=VectorParams(
-        size=1024,           # multilingual-e5-large output dim
+        size=1024,                 # multilingual-e5-large output dim
         distance=Distance.COSINE,  # cosine, not dot product
-    )
+    ),
+    sparse_vectors_config={
+        "bm25": SparseVectorParams(modifier=Modifier.IDF),
+    },
 )
 ```
 
 Cosine similarity is correct for e5 embeddings. Dot product gives different
-(worse) results for this model.
+(worse) results for this model. The `sparse_vectors_config` is required for
+hybrid retrieval — without it, only dense search runs.
 
-### BM25 index is in-memory — rebuild it at startup
+### Sparse vectors are stored in Qdrant — no in-memory index at startup
 
-The BM25 retriever from `rank-bm25` is not persistent. You must rebuild it from
-your chunk texts every time the API starts. For 20k chunks this takes ~3 seconds
-— acceptable. For 200k+ chunks, consider Qdrant's native sparse vector support
-instead.
+The keyword (BM25-style) index lives in Qdrant as native sparse vectors. The collection must be created with `sparse_vectors_config`:
 
 ```python
-# api/main.py startup event
-@app.on_event("startup")
-async def startup():
-    chunks = load_all_chunks_from_qdrant()  # scroll all payloads
-    app.state.bm25 = BM25Retriever.from_documents(chunks)
+from qdrant_client.models import SparseVectorParams, Modifier
+
+client.create_collection(
+    collection_name="polish_finance",
+    vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+    sparse_vectors_config={"bm25": SparseVectorParams(modifier=Modifier.IDF)},
+)
 ```
+
+At ingest time each chunk gets a TF sparse vector (token → normalized frequency) alongside its dense vector. At query time Qdrant applies IDF server-side — no vocabulary file or corpus statistics to maintain locally.
+
+**Migrating an existing collection** (no sparse config): the Qdrant server cannot add a new vector type to an existing collection. Run the one-time migration script:
+
+```bash
+just backfill-sparse   # scrolls all points, recreates collection, re-upserts with sparse
+```
+
+Safe to re-run — exits immediately if the collection already has sparse vectors.
 
 ---
 
@@ -359,12 +372,12 @@ Good test questions for this project:
 |---|---|---|
 | `KeyError: 'rewrite_count'` | AgentState not initialised | Pass `rewrite_count=0` at invocation |
 | Empty retrieval results | e5 prefix missing | Add `query:` / `passage:` prefixes |
-| BM25 returns None | Rebuilt with empty list | Check Qdrant scroll returns documents |
+| `sparse index unavailable` warning | Collection has no sparse vectors | Run `just backfill-sparse` |
 | Grader JSON parse error | LLM added markdown fences | Strip fences before `json.loads()` |
 | Qdrant data lost on restart | No volume mount | Always use `-v $(pwd)/qdrant_data:/qdrant/storage` |
 | Streamlit history reset | No `session_state` | Use `st.session_state.messages` |
 | SSE not streaming | Missing nginx header | Add `X-Accel-Buffering: no` |
-| Polish terms mangled in BM25 | Whisper lowercase output | Post-process with glossary |
+| Polish terms not matched in sparse | Tokenization: `.lower().split()` | Same whitespace tokenizer used at ingest and query — punctuation attached to word (`WIBOR,`) won't match (`WIBOR`). Strip punctuation if needed (tracked separately as issue #26) |
 | Slow first embedding run | Model download | ~2.2GB download on first use, cached after |
 | Wrong cosine similarity | Wrong distance metric | Use `Distance.COSINE` not `Distance.DOT` |
 

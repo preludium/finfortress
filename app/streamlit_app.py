@@ -32,8 +32,9 @@ st.caption("Finance assistant grounded in Polish sources — IKE, IKZE, bonds, m
 
 @st.cache_resource(show_spinner="Loading model and index…")
 def load_agent():
+    import asyncio
     from agent.graph import build_graph
-    return build_graph()
+    return asyncio.run(build_graph())
 
 
 app = load_agent()
