@@ -26,6 +26,7 @@ from agent.nodes.generate import build_generate_node
 from agent.nodes.grade import build_grade_node
 from agent.nodes.rerank import build_rerank_node
 from agent.nodes.retrieve import build_retrieve_node
+from agent.nodes.profile_suggest import build_profile_suggest_node
 from agent.nodes.rewrite import rewrite
 from agent.profile import load_profile, format_profile_block, parse_snapshot
 from ingest.utils.embeddings import E5Embeddings
@@ -43,6 +44,12 @@ MEMORY_DB         = ROOT / "data" / "memory.sqlite"
 # ---------------------------------------------------------------------------
 # Routing
 # ---------------------------------------------------------------------------
+
+def _route_after_classify(state: AgentState) -> str:
+    if state.get("query_type") == "profile_update":
+        return "profile_suggest"
+    return "fetch_live"
+
 
 def _route_after_grade(state: AgentState) -> str:
     if not state.get("needs_rewrite", False):
@@ -87,27 +94,34 @@ async def build_graph(qdrant_client: QdrantClient | None = None, embedder: E5Emb
 
     snapshot         = parse_snapshot(profile) if profile else None
     profile_block    = format_profile_block(profile)
-    retrieve_node    = build_retrieve_node(qdrant_client, QDRANT_COLLECTION, embedder)
-    rerank_node      = build_rerank_node()
-    grade_node       = build_grade_node()
-    generate_node    = build_generate_node(profile_block=profile_block)
-    calculate_node   = build_calculate_node(profile_block=profile_block)
-    fetch_live_node  = build_fetch_live_node(profile_text=profile or "", snapshot=snapshot)
+    retrieve_node        = build_retrieve_node(qdrant_client, QDRANT_COLLECTION, embedder)
+    rerank_node          = build_rerank_node()
+    grade_node           = build_grade_node()
+    generate_node        = build_generate_node(profile_block=profile_block)
+    calculate_node       = build_calculate_node(profile_block=profile_block)
+    fetch_live_node      = build_fetch_live_node(profile_text=profile or "", snapshot=snapshot)
+    profile_suggest_node = build_profile_suggest_node(profile_block=profile_block)
 
     graph = StateGraph(AgentState)
 
-    graph.add_node("classify",   classify)
-    graph.add_node("fetch_live", fetch_live_node)
-    graph.add_node("calculate",  calculate_node)
-    graph.add_node("retrieve",   retrieve_node)
-    graph.add_node("rerank",     rerank_node)
-    graph.add_node("grade",      grade_node)
-    graph.add_node("rewrite",    rewrite)
-    graph.add_node("generate",   generate_node)
-    graph.add_node("fallback",   fallback)
+    graph.add_node("classify",        classify)
+    graph.add_node("profile_suggest", profile_suggest_node)
+    graph.add_node("fetch_live",      fetch_live_node)
+    graph.add_node("calculate",       calculate_node)
+    graph.add_node("retrieve",        retrieve_node)
+    graph.add_node("rerank",          rerank_node)
+    graph.add_node("grade",           grade_node)
+    graph.add_node("rewrite",         rewrite)
+    graph.add_node("generate",        generate_node)
+    graph.add_node("fallback",        fallback)
 
-    graph.add_edge(START,         "classify")
-    graph.add_edge("classify",    "fetch_live")
+    graph.add_edge(START, "classify")
+    graph.add_conditional_edges(
+        "classify",
+        _route_after_classify,
+        {"profile_suggest": "profile_suggest", "fetch_live": "fetch_live"},
+    )
+    graph.add_edge("profile_suggest", END)
     graph.add_edge("fetch_live",  "calculate")
     graph.add_edge("calculate",   "retrieve")
     graph.add_edge("retrieve",    "rerank")

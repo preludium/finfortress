@@ -25,7 +25,7 @@ OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or None
 
 
 class ClassifyResult(BaseModel):
-    query_type: Literal["factual", "calculation", "comparison", "advice"] = "factual"
+    query_type: Literal["factual", "calculation", "comparison", "advice", "profile_update"] = "factual"
     needs_live_data: bool = False
 
 

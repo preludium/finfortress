@@ -16,7 +16,7 @@ class Citation(TypedDict):
 
 class AgentState(TypedDict):
     question: str
-    query_type: Literal["factual", "calculation", "comparison", "advice"]
+    query_type: Literal["factual", "calculation", "comparison", "advice", "profile_update"]
     needs_live_data: bool
     context: List[Document]
     avg_grade: float
