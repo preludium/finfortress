@@ -29,7 +29,6 @@ from qdrant_client.models import Distance, Modifier, PointStruct, SparseVectorPa
 from tqdm import tqdm
 
 ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
 from ingest.utils.chunker import chunk_documents
 from ingest.utils.embeddings import EMBED_DIM, E5Embeddings
 from ingest.utils.hasher import chunk_hash

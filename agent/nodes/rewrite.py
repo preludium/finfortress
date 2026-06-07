@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 from functools import lru_cache
 from pathlib import Path
 
@@ -11,7 +10,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
 from agent.state import AgentState

@@ -2,12 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
-import sys
-from pathlib import Path
 from typing import Callable
-
-ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(ROOT))
 
 from agent.state import AgentState
 

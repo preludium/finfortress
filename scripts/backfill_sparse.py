@@ -34,7 +34,6 @@ from qdrant_client.models import (
 from tqdm import tqdm
 
 ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
 logging.basicConfig(

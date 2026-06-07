@@ -19,7 +19,6 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 
 ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")

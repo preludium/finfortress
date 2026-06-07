@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import sys
 import warnings
 from pathlib import Path
 
@@ -16,7 +15,6 @@ from langgraph.graph import END, START, StateGraph
 from qdrant_client import QdrantClient
 
 ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
 from agent.state import AgentState, INITIAL_STATE

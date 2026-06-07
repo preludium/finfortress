@@ -1,13 +1,11 @@
 """Show indexed sources grouped by domain with document and chunk counts."""
 
 import os
-import sys
 from collections import defaultdict
 from pathlib import Path
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient

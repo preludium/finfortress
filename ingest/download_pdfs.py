@@ -32,7 +32,6 @@ import requests
 from bs4 import BeautifulSoup
 
 ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
 
 logging.basicConfig(
     level=logging.INFO,

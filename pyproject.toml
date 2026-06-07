@@ -70,7 +70,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 ignore = [
-    "E402",  # module-level import not at top — intentional: sys.path.insert + load_dotenv before local imports
+    "E402",  # module-level import not at top — intentional: load_dotenv before local imports
 ]
 
 [dependency-groups]

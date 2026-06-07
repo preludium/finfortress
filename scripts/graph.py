@@ -1,10 +1,8 @@
 """Generate a visual diagram of the agent graph and save to /tmp/finfortress_graph.png."""
 
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
 
 import asyncio
 from agent.graph import build_graph

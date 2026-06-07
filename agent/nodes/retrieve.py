@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
@@ -12,7 +11,6 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import FieldCondition, Filter, MatchAny
 
 ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(ROOT))
 from agent.state import AgentState
 from ingest.utils.embeddings import E5Embeddings
 from ingest.utils.sparse_vectorizer import query_to_sparse

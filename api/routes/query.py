@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
-from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Request
@@ -11,10 +9,6 @@ from fastapi.responses import StreamingResponse
 
 from agent.state import INITIAL_STATE
 from api.schemas import QueryRequest, QueryResponse
-
-ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(ROOT))
-
 
 log = logging.getLogger(__name__)
 router = APIRouter()

@@ -9,14 +9,12 @@ Step 4: Plan        — concrete actions with timing
 
 import logging
 import os
-import sys
 from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
 logging.basicConfig(level=logging.WARNING)
