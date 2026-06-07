@@ -1,4 +1,4 @@
-"""Smoke test for generate node — verifies Qwen2.5-32B returns valid structured answer."""
+"""Smoke test for generate node — verifies gemma-4-26B-A4B returns valid structured answer."""
 
 import logging
 import sys

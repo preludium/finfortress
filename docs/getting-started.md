@@ -37,8 +37,8 @@ See [`docs/local-llm-setup.md`](local-llm-setup.md) for oMLX installation and mo
 ```bash
 OPENAI_BASE_URL=http://localhost:8000/v1
 OPENAI_API_KEY=omlx-<your-key>       # from http://localhost:8000/admin → API Keys
-LLM_MODEL=Qwen2.5-32B-Instruct-4bit
-GRADER_MODEL=Qwen2.5-7B-Instruct-4bit
+LLM_MODEL=gemma-4-26B-A4B-it-OptiQ-4bit
+GRADER_MODEL=gemma-4-E4B-it-MLX-4bit
 ```
 
 ### Option B — OpenAI

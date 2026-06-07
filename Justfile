@@ -98,11 +98,11 @@ reindex-sparse:
 smoke-retrieval:
     {{ python }} scripts/smoke_retrieval.py
 
-# Test the grader LLM (Qwen2.5-7B / GPT-4o-mini) — verifies JSON score output
+# Test the grader LLM (gemma-4-E4B / GPT-4o-mini) — verifies JSON score output
 smoke-grade:
     {{ python }} scripts/smoke_grade.py
 
-# Test the generator LLM (Qwen2.5-32B / GPT-4o) — verifies structured answer output
+# Test the generator LLM (gemma-4-26B-A4B / GPT-4o) — verifies structured answer output
 smoke-generate:
     {{ python }} scripts/smoke_generate.py
 
@@ -113,6 +113,14 @@ smoke-graph:
 # Test financial calculators — pure unit assertions + one LLM dispatch check
 smoke-calculate:
     {{ python }} scripts/smoke_calculate.py
+
+# ── Local LLM ────────────────────────────────────────────────────────────────
+
+# Start oMLX local LLM server (OpenAI-compatible API at http://localhost:8000)
+# Admin dashboard: http://localhost:8000/admin
+omlx:
+    mkdir -p ~/models
+    omlx serve --model-dir ~/models
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 

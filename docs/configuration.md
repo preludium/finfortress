@@ -14,8 +14,8 @@ cp .env.example .env
 |---|---|---|
 | `OPENAI_API_KEY` | — | API key. For OpenAI: `sk-...`. For oMLX: `omlx-...` (find in admin dashboard). |
 | `OPENAI_BASE_URL` | *(unset — uses OpenAI)* | Set to `http://localhost:8000/v1` to point at a local oMLX server. |
-| `LLM_MODEL` | `Qwen2.5-32B-Instruct-4bit` | Generator model. Set to `gpt-4o` for OpenAI. |
-| `GRADER_MODEL` | `Qwen2.5-7B-Instruct-4bit` | Grader model — fires up to 6× per query so use a smaller/faster model. Set to `gpt-4o-mini` for OpenAI. |
+| `LLM_MODEL` | `gemma-4-26B-A4B-it-OptiQ-4bit` | Generator model. Set to `gpt-4o` for OpenAI. |
+| `GRADER_MODEL` | `gemma-4-E4B-it-MLX-4bit` | Grader model — fires up to 6× per query so use a smaller/faster model. Set to `gpt-4o-mini` for OpenAI. |
 
 The grader and generator use the same `OPENAI_BASE_URL`. If you use oMLX, both models must be downloaded in oMLX. See [`docs/local-llm-setup.md`](local-llm-setup.md).
 

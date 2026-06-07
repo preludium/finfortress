@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
-import re
 import sys
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 
 ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT))
@@ -27,6 +26,21 @@ LLM_MODEL       = os.getenv("LLM_MODEL", "gpt-4o")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
 OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or None
 GRADE_THRESHOLD = float(os.getenv("GRADE_THRESHOLD", "0.6"))
+
+
+class _CitationModel(BaseModel):
+    source: str = ""
+    author: str = ""
+    url: str = ""
+    title: str = ""
+    date: str = ""
+
+
+class _GenerateResult(BaseModel):
+    answer: str = ""
+    citations: list[_CitationModel] = Field(default_factory=list)
+    confidence: str = "low"
+    disclaimer: Optional[str] = None
 
 
 @lru_cache(maxsize=1)
@@ -66,20 +80,6 @@ def _format_context(chunks) -> str:
         header = f"[{i}] {meta.get('source','?')} | {meta.get('author','?')} | {meta.get('date','?')} | {meta.get('title','')[:60]}"
         parts.append(f"{header}\n{doc.page_content[:800]}")
     return "\n\n".join(parts)
-
-
-def _parse_response(raw: str) -> dict:
-    cleaned = re.sub(r"```json?\n?|```", "", raw).strip()
-    try:
-        return json.loads(cleaned)
-    except (json.JSONDecodeError, ValueError) as exc:
-        log.warning("Generate parse error: %s | raw: %r", exc, raw[:200])
-        return {
-            "answer": raw,
-            "citations": [],
-            "confidence": "low",
-            "disclaimer": None,
-        }
 
 
 def build_generate_node(profile_block: str = "") -> Callable[[AgentState], dict]:
@@ -132,30 +132,32 @@ def build_generate_node(profile_block: str = "") -> Callable[[AgentState], dict]
         )
 
         log.info("Generate | model=%s confidence=%s chunks=%d", LLM_MODEL, confidence, len(context))
-        raw = llm.invoke([SystemMessage(content=system), HumanMessage(content=user)]).content
-        parsed = _parse_response(raw)
-
-        citations: list[Citation] = []
-        for c in parsed.get("citations", []):
-            citations.append({
-                "source":  str(c.get("source") or ""),
-                "author":  str(c.get("author") or ""),
-                "url":     str(c.get("url") or ""),
-                "title":   str(c.get("title") or ""),
-                "date":    str(c.get("date") or ""),
-            })
+        messages = [SystemMessage(content=system), HumanMessage(content=user)]
+        try:
+            result: _GenerateResult = llm.with_structured_output(
+                _GenerateResult, method="json_mode"
+            ).invoke(messages)
+            answer = result.answer
+            citations: list[Citation] = [
+                {"source": c.source, "author": c.author, "url": c.url, "title": c.title, "date": c.date}
+                for c in result.citations
+            ]
+            confidence = result.confidence or confidence
+        except Exception as exc:
+            log.warning("Generate structured output failed: %s — falling back to raw answer", exc)
+            raw = llm.invoke(messages).content
+            answer = raw
+            citations = []
+            # confidence stays as computed above
 
         disclaimer = ADVICE_DISCLAIMER if query_type == "advice" else None
-        answer = parsed.get("answer", "")
-
         history.append({"question": question, "answer": answer})
-
         log.info("Generated answer (%d chars), history now %d turns", len(answer), len(history))
 
         return {
             "answer":     answer,
             "citations":  citations,
-            "confidence": parsed.get("confidence", confidence),
+            "confidence": confidence,
             "disclaimer": disclaimer,
             "history":    history[-10:],
         }

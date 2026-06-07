@@ -59,8 +59,8 @@ The graph is implemented with LangGraph. See [`docs/architecture.md`](docs/archi
 
 | Layer | Default (local) | Alternative (cloud) |
 |---|---|---|
-| Generator LLM | `Qwen2.5-32B-Instruct-4bit` via oMLX | OpenAI GPT-4o |
-| Grader LLM | `Qwen2.5-7B-Instruct-4bit` via oMLX | OpenAI GPT-4o-mini |
+| Generator LLM | `gemma-4-26B-A4B` via oMLX (MLX, Apple Silicon) | OpenAI GPT-4o |
+| Grader LLM | `gemma-4-E4B` via oMLX (MLX, Apple Silicon) | OpenAI GPT-4o-mini |
 | Embeddings | `intfloat/multilingual-e5-large` (local) | — |
 | Vector store | Qdrant (Docker) | Qdrant Cloud |
 | Keyword search | Qdrant native sparse vectors (Modifier.IDF) | — |

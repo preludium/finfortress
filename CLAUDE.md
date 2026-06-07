@@ -14,8 +14,8 @@ Default: **oMLX local** (Apple Silicon). OpenAI alt — same code, swap env vars
 
 | Role | Default model | OpenAI alternative |
 |---|---|---|
-| Generator | `Qwen2.5-32B-Instruct-4bit` via oMLX | `gpt-4o` |
-| Grader | `Qwen2.5-7B-Instruct-4bit` via oMLX | `gpt-4o-mini` |
+| Generator | `gemma-4-26B-A4B-it-OptiQ-4bit` via oMLX | `gpt-4o` |
+| Grader | `gemma-4-E4B-it-MLX-4bit` via oMLX | `gpt-4o-mini` |
 | Embeddings | `intfloat/multilingual-e5-large` (local, always) | — |
 
 See `docs/local-llm-setup.md` — oMLX setup + model tiers by RAM.
