@@ -35,7 +35,8 @@ finfortress/
 │   ├── nodes/
 │   │   ├── classify.py        # sets query_type + needs_live_data
 │   │   ├── fetch_live.py      # calls NBP / obligacje tools if needed
-│   │   ├── retrieve.py        # hybrid dense+sparse retrieval, RRF fusion
+│   │   ├── retrieve.py        # hybrid dense+sparse retrieval, RRF fusion (top 12)
+│   │   ├── rerank.py          # cross-encoder rerank (bge-reranker-v2-m3), 12→6
 │   │   ├── grade.py           # per-chunk relevance scoring + stale detection
 │   │   ├── rewrite.py         # rewrites query on grade failure
 │   │   ├── generate.py        # build_generate_node(profile_block="")
@@ -71,6 +72,7 @@ finfortress/
 │   ├── ingest_my_sources.py   # ingest data/my_sources/ (PDFs, URLs, blogs)
 │   ├── backfill_sparse.py     # one-time migration: add sparse vectors to existing collection
 │   ├── smoke_retrieval.py     # test hybrid retrieval, no LLM calls
+│   ├── smoke_rerank.py        # test retrieval + cross-encoder rerank, no LLM
 │   ├── smoke_grade.py         # test grader JSON output
 │   ├── smoke_generate.py      # test generator structured output
 │   ├── smoke_graph.py         # end-to-end graph run on sample question
@@ -154,6 +156,7 @@ Missing: podatki.gov.pl, KNF, obligacjeskarbowe.pl, NBP reports, UOKiK, BGK.
 
 - **multilingual-e5-large**: ada-002 degrades Polish financial vocab. e5-large: local, free, understands Polish. MUST add `query:`/`passage:` prefixes — E5Embeddings wrapper handles this.
 - **Hybrid retrieval (dense + sparse, RRF)**: dense finds synonyms, sparse (Qdrant native, Modifier.IDF) finds exact codes (COI0325, WIRON 3M). RRF merges, no score calibration. Sparse 40%, dense 60%. Text tokenized with `simplemma` Polish lemmatization (`kredytu`→`kredyt`) + regex split for punctuation stripping (`WIBOR,`→`wibor`); tokens hashed via `zlib.crc32` — no vocab file needed. After tokenizer changes: `just reindex-sparse`.
+- **Cross-encoder rerank (12→6) before grading**: bi-encoder dense + sparse score query and chunk independently, so high surface similarity ≠ actually answers the question. `bge-reranker-v2-m3` reads each (question, chunk) pair jointly for a sharper signal. Retrieve over-fetches 12, reranker forwards top 6 to the grader so its 6 LLM calls land on the best chunks. Loaded once at startup, runs local CPU/MPS (~100-200ms/12 pairs), raw logits for sort only (no threshold). `RERANK_ENABLED=false` bypasses (trim-only) for A/B benchmarking.
 - **Grading threshold 0.6**: below → chunks insufficient → rewrite.
 - **Max 2 rewrites**: prevents infinite loops. After 2 fails: avg_grade ≥ threshold → low-confidence; else → fallback.
 - **Grader = small model**: grader fires 6× per query. 32B = 5-10× costlier. 7B sufficient for binary relevance.

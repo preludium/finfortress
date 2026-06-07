@@ -9,7 +9,7 @@ Ingestion (offline, scheduled)
   Sources → Loaders → Chunker → Embedder → Qdrant
 
 Query (online, per request)
-  Question → Classify → Retrieve → Grade → [Rewrite →] Generate → Answer
+  Question → Classify → Retrieve → Rerank → Grade → [Rewrite →] Generate → Answer
 ```
 
 The two phases share only the Qdrant vector store. They can run independently — ingestion does not need the API to be up, and the API does not need ingestion to be running.
@@ -101,7 +101,7 @@ Limits in `ike_ikze_limits()` are hardcoded per year — update each January whe
 Two retrievers run in parallel and results are merged with Reciprocal Rank Fusion (k=60):
 
 **Dense retrieval (Qdrant)**
-`multilingual-e5-large` embeddings, cosine similarity, top-6. Qdrant's `Filter` is applied when classification suggests a specific source type (e.g. factual tax questions filter to `content_type: pdf_gov` to reduce blog-opinion noise).
+`multilingual-e5-large` embeddings, cosine similarity, top-12. Qdrant's `Filter` is applied when classification suggests a specific source type (e.g. factual tax questions filter to `content_type: pdf_gov` to reduce blog-opinion noise).
 
 **Sparse retrieval (Qdrant native sparse vectors)**
 TF sparse vectors stored in Qdrant alongside the dense vectors, with `Modifier.IDF` applied server-side at query time. Text is tokenized via `simplemma` Polish lemmatization (`kredytu`/`kredytów`/`kredytem` → `kredyt`) with `re.findall(r"\w+", ...)` splitting (handles `WIBOR,` → `wibor`). Each lemma is hashed to a stable 32-bit ID (`zlib.crc32`); per-document term frequencies are computed at ingest time and stored as `SparseVector`. At query time, a binary sparse query vector (weight 1.0 per unique lemma) is sent to Qdrant, which multiplies by server-side IDF weights and returns top-K by dot product.
@@ -111,6 +111,18 @@ This replaces the previous `rank-bm25` in-memory index that required scrolling a
 **Why hybrid**: Dense retrieval finds semantically similar chunks even when keywords differ ("konto emerytalne" matches "IKE"). BM25 finds exact term matches ("WIRON 3M 2025-01") that dense search can miss when the term is rare in training data. RRF consistently outperforms either retriever alone on financial Q&A.
 
 **Weights**: BM25 40%, dense 60%. Tuned on the golden test set. Financial queries tend to contain specific Polish terms (product names, legal references) that benefit from keyword matching.
+
+RRF keeps the top 12 fused candidates — a deliberately wide pool that the reranker then narrows.
+
+### Cross-encoder reranking
+
+Between fusion and grading, the `rerank` node scores every fused candidate against the question with a cross-encoder (`BAAI/bge-reranker-v2-m3`, multilingual incl. Polish, loaded once at startup) and forwards only its top 6 to the grader.
+
+**Why a cross-encoder here**: dense and sparse retrieval score query and chunk *independently* (bi-encoder / term overlap), so a chunk can rank high on surface similarity yet not actually answer the question. A cross-encoder reads the (question, chunk) pair jointly and produces a far sharper relevance signal — at the cost of running once per candidate, which is why it sits after fusion (12 pairs) rather than over the whole corpus. It runs locally on CPU/MPS in ~100–200 ms for 12 pairs, no API cost.
+
+**Why before the grader, not instead of it**: the grader does more than rank — it emits `temporal_mismatch` and drives the rewrite loop. The reranker only reorders and trims, feeding the grader a cleaner top 6 so its expensive LLM calls are spent on the most promising chunks. Output scores are raw logits used only for sorting; there is no threshold.
+
+Set `RERANK_ENABLED=false` to bypass the cross-encoder (the node then just trims the fused pool to `RERANK_TOP_K`) — useful for before/after benchmarking. See `docs/configuration.md` for `RERANK_MODEL` / `RERANK_TOP_K`.
 
 ### Context grading
 

@@ -82,7 +82,7 @@ list-sources:
 # ── Smoke tests ───────────────────────────────────────────────────────────────
 
 # Run all smoke tests in sequence
-smoke: smoke-retrieval smoke-grade smoke-generate smoke-graph smoke-calculate
+smoke: smoke-retrieval smoke-rerank smoke-grade smoke-generate smoke-graph smoke-calculate
 
 # Migrate existing Qdrant collection to add native sparse (bm25) vectors.
 # Run once after upgrading from the in-memory BM25 implementation.
@@ -97,6 +97,10 @@ reindex-sparse:
 # Test hybrid retrieval (Qdrant dense + sparse + RRF) — no LLM calls
 smoke-retrieval:
     {{ python }} scripts/smoke_retrieval.py
+
+# Test the cross-encoder reranker (bge-reranker-v2-m3) — retrieval + rerank, no LLM
+smoke-rerank:
+    {{ python }} scripts/smoke_rerank.py
 
 # Test the grader LLM (gemma-4-E4B / GPT-4o-mini) — verifies JSON score output
 smoke-grade:

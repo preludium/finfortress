@@ -24,6 +24,7 @@ from agent.nodes.fallback import fallback
 from agent.nodes.fetch_live import build_fetch_live_node
 from agent.nodes.generate import build_generate_node
 from agent.nodes.grade import build_grade_node
+from agent.nodes.rerank import build_rerank_node
 from agent.nodes.retrieve import build_retrieve_node
 from agent.nodes.rewrite import rewrite
 from agent.profile import load_profile, format_profile_block, parse_snapshot
@@ -87,6 +88,7 @@ async def build_graph(qdrant_client: QdrantClient | None = None, embedder: E5Emb
     snapshot         = parse_snapshot(profile) if profile else None
     profile_block    = format_profile_block(profile)
     retrieve_node    = build_retrieve_node(qdrant_client, QDRANT_COLLECTION, embedder)
+    rerank_node      = build_rerank_node()
     grade_node       = build_grade_node()
     generate_node    = build_generate_node(profile_block=profile_block)
     calculate_node   = build_calculate_node(profile_block=profile_block)
@@ -98,6 +100,7 @@ async def build_graph(qdrant_client: QdrantClient | None = None, embedder: E5Emb
     graph.add_node("fetch_live", fetch_live_node)
     graph.add_node("calculate",  calculate_node)
     graph.add_node("retrieve",   retrieve_node)
+    graph.add_node("rerank",     rerank_node)
     graph.add_node("grade",      grade_node)
     graph.add_node("rewrite",    rewrite)
     graph.add_node("generate",   generate_node)
@@ -107,7 +110,8 @@ async def build_graph(qdrant_client: QdrantClient | None = None, embedder: E5Emb
     graph.add_edge("classify",    "fetch_live")
     graph.add_edge("fetch_live",  "calculate")
     graph.add_edge("calculate",   "retrieve")
-    graph.add_edge("retrieve",    "grade")
+    graph.add_edge("retrieve",    "rerank")
+    graph.add_edge("rerank",      "grade")
     graph.add_conditional_edges(
         "grade",
         _route_after_grade,

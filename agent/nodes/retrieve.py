@@ -17,9 +17,11 @@ from ingest.utils.sparse_vectorizer import query_to_sparse
 
 log = logging.getLogger(__name__)
 
-DENSE_TOP_K  = 6
-BM25_TOP_K   = 6
-FINAL_TOP_K  = 6
+# Retrieval over-fetches a wide candidate pool; the rerank node narrows it to its
+# top-k before grading. Keep these >= the reranker's output (RERANK_TOP_K, default 6).
+DENSE_TOP_K  = 12
+BM25_TOP_K   = 12
+FUSION_TOP_K = 12
 RRF_K        = 60
 DENSE_WEIGHT = 0.6
 BM25_WEIGHT  = 0.4
@@ -150,7 +152,7 @@ def build_retrieve_node(
             log.warning("  sparse index unavailable — dense only")
 
         # --- Weighted RRF merge ---
-        merged_ids = _weighted_rrf(dense_ids, bm25_ids)[:FINAL_TOP_K]
+        merged_ids = _weighted_rrf(dense_ids, bm25_ids)[:FUSION_TOP_K]
         context = [id_to_doc[did] for did in merged_ids if did in id_to_doc]
 
         log.info("  merged context: %d chunks", len(context))

@@ -48,6 +48,9 @@ Embeddings always run locally via `sentence-transformers`. They are never sent t
 | `GRADE_THRESHOLD` | `0.6` | Minimum average chunk score to proceed to generation without rewriting. Below this, a query rewrite is triggered. Tune upward for stricter retrieval, downward to reduce fallbacks on harder topics. |
 | `MAX_REWRITES` | `2` | Maximum query rewrite attempts before falling back. After this limit, if `avg_grade ≥ GRADE_THRESHOLD` the agent generates with `confidence: "low"`; otherwise it falls back entirely. |
 | `STALE_MONTHS` | `18` | Document age threshold (months) for temporal mismatch detection. A document older than this is flagged as potentially stale when the question implies current data (e.g. mentions "teraz", "aktualny", "2025"). |
+| `RERANK_ENABLED` | `true` | Run the cross-encoder reranker between RRF fusion and grading. Set `false` to bypass it (the node then just trims the pool to `RERANK_TOP_K`) — useful for before/after benchmarking. |
+| `RERANK_MODEL` | `BAAI/bge-reranker-v2-m3` | Cross-encoder model (sentence-transformers). Multilingual incl. Polish, ~568 MB, loaded once at startup. |
+| `RERANK_TOP_K` | `6` | Chunks the reranker forwards to the grader. Keep ≤ the retrieval pool size (12). |
 
 ---
 
