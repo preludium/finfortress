@@ -52,12 +52,18 @@ jobs:
 
             - name: Verify openhands install
               run: |
-                  echo "=== venv bin ==="
-                  ls /tmp/oh-venv/bin/
-                  echo "=== openhands-ai installed ==="
+                  echo "=== installed version ==="
                   /tmp/oh-venv/bin/pip list | grep -i openhands
-                  echo "=== module test ==="
-                  /tmp/oh-venv/bin/python -c "import openhands; print(openhands.__version__)"
+                  echo "=== package location ==="
+                  /tmp/oh-venv/bin/python -c "import openhands; print(openhands.__file__)"
+                  echo "=== top-level submodules ==="
+                  /tmp/oh-venv/bin/python -c "
+import pkgutil, openhands
+mods = [m.name for m in pkgutil.iter_modules(openhands.__path__, prefix='openhands.')]
+print('\n'.join(mods))
+"
+                  echo "=== bin scripts ==="
+                  ls /tmp/oh-venv/bin/ | grep -v python | grep -v pip | grep -v activate
 
             - name: Create or checkout branch
               run: |
