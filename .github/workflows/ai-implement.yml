@@ -50,8 +50,17 @@ jobs:
                   uv pip install --python /tmp/oh-venv/bin/python openhands-ai
                   echo "/tmp/oh-venv/bin" >> "$GITHUB_PATH"
 
-            - name: Verify openhands install
-              run: openhands --version
+            - name: Debug openhands install
+              run: |
+                  echo "=== venv bin contents ==="
+                  ls /tmp/oh-venv/bin/ || echo "venv bin missing"
+                  echo "=== pip list (openhands) ==="
+                  /tmp/oh-venv/bin/pip list 2>/dev/null | grep -i openhands || echo "not installed"
+                  echo "=== import test ==="
+                  /tmp/oh-venv/bin/python -c "import openhands; print(openhands.__version__)" \
+                    2>&1 || echo "import failed"
+                  echo "=== GITHUB_PATH ==="
+                  cat "$GITHUB_PATH"
 
             - name: Create or checkout branch
               run: |
