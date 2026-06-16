@@ -1,0 +1,223 @@
+# Automated AI implementation workflow
+# Trigger: add label "ai-implement" to any issue
+#
+# Required secrets (Settings → Secrets → Actions):
+#   DEEPSEEK_API_KEY  — DeepSeek API key (primary model)
+#   GROQ_API_KEY      — Groq API key (fallback model)
+#
+# Required repo settings:
+#   Settings → Actions → General → Workflow permissions → Read and write
+#   Settings → Actions → General → Allow GitHub Actions to create and approve pull requests
+
+name: AI Implement Issue
+
+on:
+    issues:
+        types: [labeled]
+
+permissions:
+    contents: write
+    pull-requests: write
+    issues: write
+
+jobs:
+    implement:
+        if: github.event.label.name == 'ai-implement'
+        runs-on: ubuntu-latest
+
+        env:
+            ISSUE_NUMBER: ${{ github.event.issue.number }}
+            ISSUE_TITLE: ${{ github.event.issue.title }}
+            BRANCH_NAME: ai/issue-${{ github.event.issue.number }}
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Set up Python 3.11
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+
+            - name: Install openhands-ai
+              run: pip install openhands-ai
+
+            - name: Create or checkout branch
+              run: |
+                  git config user.name  "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+
+                  if git ls-remote --exit-code --heads origin "$BRANCH_NAME" > /dev/null 2>&1; then
+                    echo "Branch $BRANCH_NAME already exists remotely, checking out"
+                    git fetch origin "$BRANCH_NAME"
+                    git checkout "$BRANCH_NAME"
+                  else
+                    git checkout -b "$BRANCH_NAME"
+                  fi
+
+            - name: Write task file
+              env:
+                  ISSUE_BODY: ${{ github.event.issue.body }}
+              run: |
+                  BODY="${ISSUE_BODY:-}"
+                  if [ -z "$BODY" ]; then
+                    printf 'Issue #%s: %s\n\nImplement a solution in this Python repository.' \
+                      "$ISSUE_NUMBER" "$ISSUE_TITLE" > /tmp/task.txt
+                  else
+                    printf 'Issue #%s: %s\n\n%s\n\nImplement a solution in this Python repository.' \
+                      "$ISSUE_NUMBER" "$ISSUE_TITLE" "$BODY" > /tmp/task.txt
+                  fi
+                  echo "=== Task file ==="
+                  cat /tmp/task.txt
+
+            - name: Run OpenHands (primary — DeepSeek)
+              id: primary
+              continue-on-error: true
+              env:
+                  OPENAI_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+                  OPENAI_BASE_URL: https://api.deepseek.com/v1
+              run: |
+                  set +e
+                  openhands --headless \
+                    -f /tmp/task.txt \
+                    -d "$GITHUB_WORKSPACE" \
+                    2>&1 | tee /tmp/openhands-primary.log
+                  EXIT_CODE=${PIPESTATUS[0]}
+                  echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+                  if grep -qiE "rate_limit|429" /tmp/openhands-primary.log; then
+                    echo "rate_limited=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "rate_limited=false" >> "$GITHUB_OUTPUT"
+                  fi
+                  exit 0
+
+            - name: Run OpenHands (fallback — Groq Llama 3.3 70B)
+              id: fallback
+              if: steps.primary.outputs.exit_code != '0' || steps.primary.outputs.rate_limited == 'true'
+              continue-on-error: true
+              env:
+                  OPENAI_API_KEY: ${{ secrets.GROQ_API_KEY }}
+                  OPENAI_BASE_URL: https://api.groq.com/openai/v1
+                  OPENHANDS_LLM_MODEL: groq/llama-3.3-70b-versatile
+              run: |
+                  set +e
+                  openhands --headless \
+                    -f /tmp/task.txt \
+                    -d "$GITHUB_WORKSPACE" \
+                    2>&1 | tee /tmp/openhands-fallback.log
+                  EXIT_CODE=${PIPESTATUS[0]}
+                  echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+                  exit 0
+
+            - name: Check overall result
+              id: result
+              run: |
+                  PRIMARY_EXIT="${{ steps.primary.outputs.exit_code }}"
+                  PRIMARY_RATE="${{ steps.primary.outputs.rate_limited }}"
+                  FALLBACK_EXIT="${{ steps.fallback.outputs.exit_code }}"
+
+                  if [ "$PRIMARY_EXIT" = "0" ] && [ "$PRIMARY_RATE" != "true" ]; then
+                    echo "success=true"  >> "$GITHUB_OUTPUT"
+                    echo "model=DeepSeek V4 Flash (deepseek/deepseek-chat)" >> "$GITHUB_OUTPUT"
+                  elif [ "$FALLBACK_EXIT" = "0" ]; then
+                    echo "success=true"  >> "$GITHUB_OUTPUT"
+                    echo "model=Groq Llama 3.3 70B (groq/llama-3.3-70b-versatile)" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "success=false" >> "$GITHUB_OUTPUT"
+                    echo "model=none"    >> "$GITHUB_OUTPUT"
+                  fi
+
+            - name: Label and comment on failure
+              if: steps.result.outputs.success == 'false'
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  gh issue edit "$ISSUE_NUMBER" --add-label "ai-failed"
+
+                  PRIMARY_LOG=$(tail -50 /tmp/openhands-primary.log 2>/dev/null || echo "(no primary log)")
+                  FALLBACK_LOG=$(tail -50 /tmp/openhands-fallback.log 2>/dev/null || echo "(not triggered)")
+
+                  {
+                    echo "## AI implementation failed"
+                    echo ""
+                    echo "Both DeepSeek (primary) and Groq (fallback) were unable to implement this issue."
+                    echo ""
+                    echo "<details>"
+                    echo "<summary>Primary log (last 50 lines)</summary>"
+                    echo ""
+                    echo '```'
+                    echo "$PRIMARY_LOG"
+                    echo '```'
+                    echo "</details>"
+                    echo ""
+                    echo "<details>"
+                    echo "<summary>Fallback log (last 50 lines)</summary>"
+                    echo ""
+                    echo '```'
+                    echo "$FALLBACK_LOG"
+                    echo '```'
+                    echo "</details>"
+                    echo ""
+                    echo "Please implement manually or simplify the issue description."
+                  } > /tmp/failure-comment.md
+
+                  gh issue comment "$ISSUE_NUMBER" --body-file /tmp/failure-comment.md
+
+            - name: Check if agent made any changes
+              id: diff
+              if: steps.result.outputs.success == 'true'
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  if git diff --quiet && git diff --cached --quiet; then
+                    echo "has_changes=false" >> "$GITHUB_OUTPUT"
+                    gh issue comment "$ISSUE_NUMBER" --body \
+                      "Agent ran successfully but made no changes to the codebase. The issue may need a more specific description."
+                  else
+                    echo "has_changes=true" >> "$GITHUB_OUTPUT"
+                  fi
+
+            - name: Commit and push changes
+              if: steps.result.outputs.success == 'true' && steps.diff.outputs.has_changes == 'true'
+              run: |
+                  git add -A
+                  git commit -m "feat(ai): resolve issue #${ISSUE_NUMBER} - ${ISSUE_TITLE}"
+                  git push origin "$BRANCH_NAME"
+
+            - name: Create pull request
+              if: steps.result.outputs.success == 'true' && steps.diff.outputs.has_changes == 'true'
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  MODEL_USED: ${{ steps.result.outputs.model }}
+              run: |
+                  EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --json number --jq '.[0].number' 2>/dev/null)
+                  if [ -n "$EXISTING_PR" ]; then
+                    echo "PR #$EXISTING_PR already exists for branch $BRANCH_NAME — skipping creation (push updated it)"
+                    exit 0
+                  fi
+
+                  {
+                    echo "Closes #${ISSUE_NUMBER}"
+                    echo ""
+                    echo "## Implementation"
+                    echo ""
+                    echo "Generated automatically by OpenHands."
+                    echo "**Model:** ${MODEL_USED}"
+                    echo ""
+                    echo "## Review checklist"
+                    echo ""
+                    echo "- [ ] Review changed files"
+                    echo "- [ ] Run tests locally"
+                    echo "- [ ] Verify the issue is actually resolved"
+                  } > /tmp/pr-body.md
+
+                  gh pr create \
+                    --title "[AI] ${ISSUE_TITLE}" \
+                    --body-file /tmp/pr-body.md \
+                    --label "ai-generated" \
+                    --base main \
+                    --head "$BRANCH_NAME"

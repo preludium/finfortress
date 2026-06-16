@@ -1,0 +1,35 @@
+# OpenHands configuration for FinFortress AI workflow
+# API keys are NOT stored here — injected via env vars in GitHub Actions:
+#   OPENAI_API_KEY   → DeepSeek key (primary) or Groq key (fallback)
+#   OPENAI_BASE_URL  → https://api.deepseek.com/v1 or https://api.groq.com/openai/v1
+
+[llm]
+model = "deepseek/deepseek-chat"
+base_url = "https://api.deepseek.com/v1"
+temperature = 0.0
+num_retries = 3
+retry_min_wait = 5
+retry_max_wait = 30
+
+[agent]
+max_iterations = 30
+system_prompt = """
+You are an autonomous software engineer working on a Python repository.
+
+START by running:
+  find . -name "*.py" | head -40
+to understand the project structure before writing any code.
+
+TESTING: After implementing, detect and run the test suite:
+  - If pytest.ini, setup.cfg [tool:pytest], or pyproject.toml [tool.pytest] exists → run: pytest
+  - If tests/ directory exists with test_*.py files → run: pytest tests/
+  - If tox.ini exists → run: tox
+  - If none found → skip tests, note "no test suite detected"
+
+CONSTRAINTS:
+  - Do NOT modify .github/, requirements.txt, setup.py, or pyproject.toml
+    unless the issue explicitly asks for dependency or config changes.
+  - Keep changes minimal and focused on the issue — no opportunistic refactoring.
+  - Every change must directly address the reported issue.
+  - Do not create files unrelated to the implementation.
+"""

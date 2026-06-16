@@ -135,6 +135,63 @@ Full setup instructions, including oMLX local LLM configuration and smoke testin
 
 ---
 
+## AI Workflow
+
+Add label `ai-implement` to any issue → OpenHands implements it → PR ready in ~5 min.
+
+### How to use
+
+1. Create an issue with a concrete description of what to implement
+2. Add label **`ai-implement`**
+3. Wait ~5 minutes
+4. Review the PR labeled `ai-generated`
+
+If the agent fails, the issue gets label `ai-failed` with error logs in a comment.
+
+### Secrets setup
+
+**Settings → Secrets and variables → Actions → New repository secret**
+
+| Secret | Value |
+|---|---|
+| `DEEPSEEK_API_KEY` | DeepSeek API key (primary model) |
+| `GROQ_API_KEY` | Groq API key (fallback model) |
+
+`GITHUB_TOKEN` is automatic — no need to add it.
+
+### GitHub Actions permissions
+
+**Settings → Actions → General:**
+
+1. **Workflow permissions** → select `Read and write permissions`
+2. Check **`Allow GitHub Actions to create and approve pull requests`**
+
+### Set up labels
+
+```bash
+bash scripts/setup_labels.sh
+# or for a specific repo:
+bash scripts/setup_labels.sh owner/repo
+```
+
+### Models
+
+| Role | Model |
+|---|---|
+| Primary | DeepSeek V4 Flash (`deepseek/deepseek-chat`) |
+| Fallback | Groq Llama 3.3 70B (`groq/llama-3.3-70b-versatile`) |
+
+Fallback triggers automatically when primary returns an error or rate limit (HTTP 429).
+
+### Known limitations
+
+- Agent may struggle with very complex issues — split them into smaller tasks
+- Does not modify `requirements.txt`, `setup.py`, or `pyproject.toml` unless the issue explicitly asks for it
+- Requires a specific description — vague issues like "improve performance" won't work well
+- Max 30 agent iterations per issue
+
+---
+
 ## License
 
 MIT
