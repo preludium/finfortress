@@ -1,5 +1,6 @@
 # Automated AI implementation workflow
 # Trigger: add label "ai-implement" to any issue
+# Install: pip install openhands  (PyPI package name, not openhands-ai)
 #
 # Required secrets (Settings → Secrets → Actions):
 #   DEEPSEEK_API_KEY  — DeepSeek API key (primary model)
@@ -42,8 +43,8 @@ jobs:
               with:
                   python-version: "3.11"
 
-            - name: Install openhands-ai
-              run: pip install openhands-ai
+            - name: Install openhands
+              run: pip install openhands
 
             - name: Create or checkout branch
               run: |
