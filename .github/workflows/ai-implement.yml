@@ -50,17 +50,14 @@ jobs:
                   uv pip install --python /tmp/oh-venv/bin/python openhands-ai
                   echo "/tmp/oh-venv/bin" >> "$GITHUB_PATH"
 
-            - name: Debug openhands install
+            - name: Verify openhands install
               run: |
-                  echo "=== venv bin contents ==="
-                  ls /tmp/oh-venv/bin/ || echo "venv bin missing"
-                  echo "=== pip list (openhands) ==="
-                  /tmp/oh-venv/bin/pip list 2>/dev/null | grep -i openhands || echo "not installed"
-                  echo "=== import test ==="
-                  /tmp/oh-venv/bin/python -c "import openhands; print(openhands.__version__)" \
-                    2>&1 || echo "import failed"
-                  echo "=== GITHUB_PATH ==="
-                  cat "$GITHUB_PATH"
+                  echo "=== venv bin ==="
+                  ls /tmp/oh-venv/bin/
+                  echo "=== openhands-ai installed ==="
+                  /tmp/oh-venv/bin/pip list | grep -i openhands
+                  echo "=== module test ==="
+                  /tmp/oh-venv/bin/python -c "import openhands; print(openhands.__version__)"
 
             - name: Create or checkout branch
               run: |
@@ -98,8 +95,9 @@ jobs:
                   OPENAI_BASE_URL: https://api.deepseek.com/v1
               run: |
                   set +e
-                  openhands --headless \
-                    -f /tmp/task.txt \
+                  TASK=$(cat /tmp/task.txt)
+                  /tmp/oh-venv/bin/python -m openhands.core.main \
+                    -t "$TASK" \
                     -d "$GITHUB_WORKSPACE" \
                     2>&1 | tee /tmp/openhands-primary.log
                   EXIT_CODE=${PIPESTATUS[0]}
@@ -122,8 +120,9 @@ jobs:
                   OPENHANDS_LLM_MODEL: groq/llama-3.3-70b-versatile
               run: |
                   set +e
-                  openhands --headless \
-                    -f /tmp/task.txt \
+                  TASK=$(cat /tmp/task.txt)
+                  /tmp/oh-venv/bin/python -m openhands.core.main \
+                    -t "$TASK" \
                     -d "$GITHUB_WORKSPACE" \
                     2>&1 | tee /tmp/openhands-fallback.log
                   EXIT_CODE=${PIPESTATUS[0]}
