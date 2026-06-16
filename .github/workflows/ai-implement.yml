@@ -46,8 +46,12 @@ jobs:
             - name: Install openhands-ai
               run: |
                   pip install uv
-                  uv pip install --python "$(which python)" openhands-ai
-                  openhands --version
+                  python -m venv /tmp/oh-venv
+                  uv pip install --python /tmp/oh-venv/bin/python openhands-ai
+                  echo "/tmp/oh-venv/bin" >> "$GITHUB_PATH"
+
+            - name: Verify openhands install
+              run: openhands --version
 
             - name: Create or checkout branch
               run: |
