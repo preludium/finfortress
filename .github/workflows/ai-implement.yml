@@ -43,8 +43,11 @@ jobs:
               with:
                   python-version: "3.12"
 
-            - name: Install openhands
-              run: pip install openhands
+            - name: Install openhands-ai
+              run: |
+                  pip install uv
+                  uv pip install --system openhands-ai
+                  openhands --version
 
             - name: Create or checkout branch
               run: |
@@ -82,9 +85,8 @@ jobs:
                   OPENAI_BASE_URL: https://api.deepseek.com/v1
               run: |
                   set +e
-                  TASK=$(cat /tmp/task.txt)
-                  python -m openhands.core.main \
-                    -t "$TASK" \
+                  openhands --headless \
+                    -f /tmp/task.txt \
                     -d "$GITHUB_WORKSPACE" \
                     2>&1 | tee /tmp/openhands-primary.log
                   EXIT_CODE=${PIPESTATUS[0]}
@@ -107,9 +109,8 @@ jobs:
                   OPENHANDS_LLM_MODEL: groq/llama-3.3-70b-versatile
               run: |
                   set +e
-                  TASK=$(cat /tmp/task.txt)
-                  python -m openhands.core.main \
-                    -t "$TASK" \
+                  openhands --headless \
+                    -f /tmp/task.txt \
                     -d "$GITHUB_WORKSPACE" \
                     2>&1 | tee /tmp/openhands-fallback.log
                   EXIT_CODE=${PIPESTATUS[0]}
