@@ -46,7 +46,7 @@ jobs:
             - name: Install openhands-ai
               run: |
                   pip install uv
-                  uv pip install --system openhands-ai
+                  uv pip install --python "$(which python)" openhands-ai
                   openhands --version
 
             - name: Create or checkout branch
